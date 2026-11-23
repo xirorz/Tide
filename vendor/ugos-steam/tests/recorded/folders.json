@@ -1,0 +1,22 @@
+[
+ {
+  "apps": 9,
+  "capacity": 1000203837440,
+  "default": false,
+  "free": 103659446272,
+  "index": 0,
+  "label": "",
+  "mounted": true,
+  "path": "/home/player/.local/share/Steam"
+ },
+ {
+  "apps": 6,
+  "capacity": 983334674432,
+  "default": true,
+  "free": 373154189312,
+  "index": 1,
+  "label": "",
+  "mounted": true,
+  "path": "/mnt/Data/SteamLibrary"
+ }
+]

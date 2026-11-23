@@ -1,0 +1,148 @@
+#!/usr/bin/env python3
+"""Park mode: step away and leave things running; the screen becomes your kid's space.
+
+  tide-park park       every window goes to a hidden workspace (it keeps running), your
+                       apps' sound is muted, and Hyprland's "tide-park" key map is on, so
+                       the only key that does anything is the unpark combo (Super+Alt+P,
+                       held; services/Park.qml counts the hold)
+  tide-park unpark     every window back where it was, your sound back, keys back
+  tide-park mute       mute app sound that started while parked (the shell runs this every
+                       few seconds while parked; the kid space's own sound is left alone)
+  tide-park status     JSON: parked, since, how many windows are set aside, which apps
+
+State: ~/.local/state/tide/park.json. This keeps things out of reach of little hands;
+it isn't security (the lock screen is).
+"""
+import json, os, subprocess, sys, time
+from pathlib import Path
+
+STATE = Path.home() / ".local/state/tide/park.json"
+HIDDEN = "special:tide-park"
+KIDS_APP = "Tide Park"          # application.name on the kid space's own sound (not muted)
+
+
+def hypr(what):
+    try:
+        return json.loads(subprocess.run(["hyprctl", what, "-j"], capture_output=True, text=True).stdout or "[]")
+    except ValueError:
+        return []
+
+
+def dispatch(lua):
+    subprocess.run(["hyprctl", "dispatch", lua], capture_output=True)
+
+
+def lua(s):
+    return '"' + s.replace("\\", "\\\\").replace('"', '\\"') + '"'
+
+
+def read():
+    try:
+        return json.loads(STATE.read_text())
+    except (OSError, ValueError):
+        return {}
+
+
+def write(d):
+    STATE.parent.mkdir(parents=True, exist_ok=True)
+    tmp = STATE.with_suffix(".tmp")
+    tmp.write_text(json.dumps(d, indent=2))
+    tmp.replace(STATE)
+
+
+def sink_inputs():
+    """[(id, muted, app name)] from pactl (PipeWire's pulse side)."""
+    try:
+        out = json.loads(subprocess.run(["pactl", "-f", "json", "list", "sink-inputs"], capture_output=True, text=True).stdout or "[]")
+    except ValueError:
+        return []
+    return [(str(s.get("index")), bool(s.get("mute")), (s.get("properties") or {}).get("application.name", "")) for s in out]
+
+
+def mute_new(d):
+    """Mute every stream that isn't the kid space's and isn't muted yet; remember it."""
+    muted = set(d.get("muted", []))
+    for sid, is_muted, app in sink_inputs():
+        if app == KIDS_APP or is_muted or sid in muted:
+            continue
+        subprocess.run(["pactl", "set-sink-input-mute", sid, "1"], capture_output=True)
+        muted.add(sid)
+    d["muted"] = sorted(muted)
+
+
+def park():
+    d = read()
+    if d.get("parked"):
+        print(json.dumps({"parked": True, "already": True}))
+        return 0
+    windows = []
+    for c in hypr("clients"):
+        ws = (c.get("workspace") or {}).get("name", "")
+        if ws.startswith("special:") or c.get("class") == "org.quickshell":
+            continue
+        windows.append({"address": c["address"], "workspace": ws, "class": c.get("class", ""), "title": c.get("title", "")[:80]})
+    aw = hypr("activeworkspace")
+    active = aw.get("name", "1") if isinstance(aw, dict) else "1"
+    d = {"parked": True, "since": int(time.time()), "windows": windows, "muted": [], "workspace": active}
+    write(d)                       # first, so an unpark can always find them
+    for w in windows:
+        dispatch("hl.dsp.window.move({ workspace = %s, window = %s, follow = false })" % (lua(HIDDEN), lua("address:" + w["address"])))
+    mute_new(d)
+    write(d)
+    dispatch('hl.dsp.submap("tide-park")')
+    print(json.dumps({"parked": True, "windows": len(windows), "muted": len(d["muted"])}))
+    return 0
+
+
+def unpark():
+    d = read()
+    dispatch('hl.dsp.submap("reset")')
+    here = {c["address"]: c for c in hypr("clients")}
+    listed = set()
+    for w in d.get("windows", []):
+        listed.add(w["address"])
+        if w["address"] in here:
+            dispatch("hl.dsp.window.move({ workspace = %s, window = %s, follow = false })" % (lua(w["workspace"]), lua("address:" + w["address"])))
+    # anything else left in the parked workspace (opened while parked) comes back too
+    for a, c in here.items():
+        if (c.get("workspace") or {}).get("name") == HIDDEN and a not in listed:
+            dispatch("hl.dsp.window.move({ workspace = %s, window = %s, follow = false })" % (lua(d.get("workspace") or "1"), lua("address:" + a)))
+    ids = {sid for sid, _, _ in sink_inputs()}
+    for sid in d.get("muted", []):
+        if sid in ids:
+            subprocess.run(["pactl", "set-sink-input-mute", sid, "0"], capture_output=True)
+    if d.get("workspace"):
+        dispatch("hl.dsp.focus({ workspace = %s })" % lua(d["workspace"]))
+    write({"parked": False, "last": int(time.time())})
+    print(json.dumps({"parked": False, "restored": len(d.get("windows", []))}))
+    return 0
+
+
+def status():
+    d = read()
+    here = {c["address"] for c in hypr("clients")}
+    apps = sorted({w["class"] for w in d.get("windows", []) if w["address"] in here and w["class"]})
+    print(json.dumps({"parked": bool(d.get("parked")), "since": d.get("since", 0), "windows": len(d.get("windows", [])), "apps": apps}))
+    return 0
+
+
+def main(a):
+    cmd = a[0] if a else "status"
+    if cmd == "park":
+        return park()
+    if cmd == "unpark":
+        return unpark()
+    if cmd == "mute":
+        d = read()
+        if d.get("parked"):
+            mute_new(d)
+            write(d)
+        return 0
+    if cmd == "status":
+        return status()
+    print(__doc__, file=sys.stderr)
+    return 2
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))

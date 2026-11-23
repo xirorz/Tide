@@ -1,0 +1,366 @@
+#!/usr/bin/env python3
+"""The login screen (SDDM) with SilentSDDM, the theme by uiriansan
+(https://github.com/uiriansan/SilentSDDM, GPL-2.0). Tide doesn't change the theme's
+files: the background goes in "<its config>.user", which SDDM reads on top of the
+theme's own config, so updating the theme keeps it. Settings → Login screen uses this.
+
+  tide-login-screen status          JSON: installed, active, config, background, ...
+  tide-login-screen set <file>      an image or video for the login and lock views
+  tide-login-screen options         JSON: the layout options Tide offers and their values
+  tide-login-screen set-options k=v ...   change them (keys: OPTIONS below; background=<file>,
+                                    font=<family>, clock-font=<family>: one of Tide's fonts)
+  tide-login-screen use             make SilentSDDM the login screen (pkexec)
+  tide-login-screen preview [dir]   SDDM's test mode for 30 s, nothing changes (dir: a copy of the theme)
+
+The password is asked once (pkexec tide-login-screen root-setup): the .user file and a
+backgrounds/tide/ folder become yours, so later changes need no password. Both are
+Tide's own files in the theme (the package doesn't have them), so updates leave them.
+Earlier tide-* backgrounds move into tide/. root-use writes
+/etc/sddm.conf.d/zz-tide-theme.conf.
+"""
+import configparser, glob, json, os, re, shutil, subprocess, sys, tempfile
+from pathlib import Path
+
+THEME = Path("/usr/share/sddm/themes/silent")
+VIDEO = re.compile(r"\.(mp4|webm|mkv|mov|avi)$", re.I)
+IMAGE = re.compile(r"\.(png|jpe?g|webp|bmp)$", re.I)      # no gif: the theme says it can crash SDDM
+KEYS = (("LockScreen", "background"), ("LoginScreen", "background"))
+# what Settings → Login screen offers: "section/key" -> allowed values (a set, or a check)
+CLOCK = {"top-left", "top-center", "top-right", "center-left", "center", "center-right", "bottom-left", "bottom-center", "bottom-right"}
+OPTIONS = {
+    "LoginScreen.LoginArea/position": {"left", "center", "right"},
+    "LockScreen/display": {"true", "false"},
+    "LockScreen.Clock/position": CLOCK,
+    "LockScreen.Message/position": CLOCK,
+    "LockScreen.Clock/align": {"left", "center", "right"},
+    "LockScreen.Message/align": {"left", "center", "right"},
+    "LockScreen.Clock/format": {"hh:mm", "h:mm AP"},
+    "LockScreen/blur": lambda v: v.isdigit() and int(v) <= 64,
+    "LoginScreen/blur": lambda v: v.isdigit() and int(v) <= 64,
+    "LockScreen/brightness": lambda v: re.fullmatch(r"-?(0(\.\d+)?|1(\.0+)?)", v) is not None,
+    "LoginScreen/brightness": lambda v: re.fullmatch(r"-?(0(\.\d+)?|1(\.0+)?)", v) is not None,
+}
+TIDE_DIR = THEME / "backgrounds" / "tide"
+# fonts: the greeter runs as the sddm user and only sees system fonts, so the ones you
+# pick are copied (from Tide's own fonts) into a system font folder that is yours
+FONT_DIR = Path("/usr/local/share/fonts/tide")
+TIDE_FONTS = Path.home() / ".config/Tide/fonts"
+FONTS = {
+    "Inter": "inter/Inter[opsz,wght].ttf", "Geist": "geist/Geist[wght].ttf", "DM Sans": "dmsans/DMSans[opsz,wght].ttf",
+    "IBM Plex Sans": "ibmplexsans/IBMPlexSans[wdth,wght].ttf", "Space Grotesk": "spacegrotesk/SpaceGrotesk[wght].ttf",
+    "Orbitron": "orbitron/Orbitron[wght].ttf", "Monoton": "monoton/Monoton-Regular.ttf", "JetBrains Mono": "jetbrainsmono/JetBrainsMono[wght].ttf",
+    "RedHatDisplay": None,      # the theme's own (installed with it)
+}
+TEXT_FONT_KEYS = ["LockScreen.Date", "LockScreen.Message", "LoginScreen.LoginArea.Username", "LoginScreen.LoginArea.PasswordInput",
+                  "LoginScreen.LoginArea.LoginButton", "LoginScreen.LoginArea.Spinner", "LoginScreen.LoginArea.WarningMessage",
+                  "LoginScreen.MenuArea.Buttons", "LoginScreen.MenuArea.Popups", "Tooltips"]
+
+
+def user_file():
+    return Path(str(theme_config()) + ".user")
+
+
+def ready():
+    """The .user file and backgrounds/tide/ are this user's: no password needed."""
+    u = user_file()
+    return u.is_file() and os.access(u, os.W_OK) and TIDE_DIR.is_dir() and os.access(TIDE_DIR, os.W_OK) \
+        and FONT_DIR.is_dir() and os.access(FONT_DIR, os.W_OK)
+
+
+def setup():
+    if ready():
+        return None
+    r = subprocess.run(["pkexec", os.path.abspath(__file__), "root-setup", str(os.getuid()), str(os.getgid())], capture_output=True, text=True)
+    if r.returncode in (126, 127):
+        return "Not changed (no password given)"
+    if r.returncode != 0 or not ready():
+        return (r.stderr or r.stdout).strip()[-300:] or "Couldn't set it up"
+    return None
+
+
+def write_user(pairs):
+    u = user_file()
+    text = u.read_text()
+    for (sec, key), v in pairs:
+        text = ini_set(text, sec, key, v)
+    # in place: the file is yours, the configs/ folder around it isn't (no temp file there)
+    u.write_text(text)
+
+
+def theme_config(theme=THEME):
+    meta = configparser.ConfigParser(interpolation=None)
+    try:
+        meta.read(theme / "metadata.desktop")
+        rel = meta.get("SddmGreeterTheme", "ConfigFile", fallback="theme.conf").strip()
+    except configparser.Error:
+        rel = "theme.conf"
+    return theme / rel
+
+
+def ini_get(path, sec, key):
+    cur = None
+    try:
+        lines = Path(path).read_text(errors="replace").splitlines()
+    except OSError:
+        return None
+    for line in lines:
+        t = line.strip()
+        if t.startswith("[") and t.endswith("]"):
+            cur = t[1:-1]
+        elif cur == sec and "=" in t and t.split("=", 1)[0].strip() == key:
+            return t.split("=", 1)[1].strip().strip('"')
+    return None
+
+
+def ini_set(text, sec, key, value):
+    """One key changed in place in an ini text (section added when missing)."""
+    lines = text.splitlines()
+    cur, at, end = None, None, None
+    for i, line in enumerate(lines):
+        t = line.strip()
+        if t.startswith("[") and t.endswith("]"):
+            if cur == sec and end is None:
+                end = i
+            cur = t[1:-1]
+        elif cur == sec and "=" in t and t.split("=", 1)[0].strip() == key:
+            at = i
+    if cur == sec and end is None:
+        end = len(lines)
+    new = f'{key} = "{value}"'
+    if at is not None:
+        lines[at] = new
+    elif end is None:
+        lines += ([""] if lines else []) + [f"[{sec}]", new]
+    else:
+        while end > 0 and not lines[end - 1].strip():
+            end -= 1
+        lines.insert(end, new)
+    return "\n".join(lines) + "\n"
+
+
+def active():
+    cur = ""
+    for f in ["/etc/sddm.conf"] + sorted(glob.glob("/etc/sddm.conf.d/*.conf")):
+        v = ini_get(f, "Theme", "Current")
+        if v:
+            cur = v       # later files win, like SDDM
+    return cur
+
+
+def status():
+    cfg = theme_config()
+    user = Path(str(cfg) + ".user")
+    def value(sec, key):
+        return ini_get(user, sec, key) or ini_get(cfg, sec, key) or ""
+    bg = value("LoginScreen", "background")
+    path = str(THEME / "backgrounds" / bg) if bg else ""
+    ph = value("General", "animated-background-placeholder")
+    return {
+        "installed": THEME.is_dir(),
+        "active": active() == "silent",
+        "current": active(),
+        "config": str(cfg),
+        "background": bg,
+        "path": path,
+        "video": bool(VIDEO.search(bg)),
+        "placeholder": str(THEME / "backgrounds" / ph) if ph else "",
+        "tide": bool(ini_get(user, "LoginScreen", "background")),
+        "greeter": bool(shutil.which("sddm-greeter-qt6")),
+        "ready": ready(),
+    }
+
+
+def safe_name(src):
+    stem = re.sub(r"[^A-Za-z0-9._-]+", "-", Path(src).stem).strip("-")[:60] or "background"
+    return "tide-" + stem + Path(src).suffix.lower()
+
+
+def set_background(src):
+    src = os.path.abspath(os.path.expanduser(src))
+    if not os.path.isfile(src) or not (VIDEO.search(src) or IMAGE.search(src)):
+        print(json.dumps({"error": "Pick an image or a video file"}))
+        return 1
+    if not THEME.is_dir():
+        print(json.dumps({"error": "SilentSDDM isn't installed"}))
+        return 1
+    err = setup()
+    if err:
+        print(json.dumps({"error": err}))
+        return 1
+    print(json.dumps({"ok": True, "background": put_background(src)}))
+    return 0
+
+
+def put_background(src):
+    """Copy it into backgrounds/tide/ and point the .user file at it (after setup)."""
+    name = Path(safe_name(src)).name
+    shutil.copyfile(src, TIDE_DIR / name)
+    os.chmod(TIDE_DIR / name, 0o644)
+    ph = ""
+    if VIDEO.search(src) and shutil.which("ffmpeg"):
+        # its first frame shows while the video loads (the theme's placeholder)
+        out = TIDE_DIR / (Path(name).stem + ".png")
+        r = subprocess.run(["ffmpeg", "-v", "error", "-y", "-i", src, "-frames:v", "1", str(out)], capture_output=True)
+        if r.returncode == 0 and out.is_file():
+            os.chmod(out, 0o644)
+            ph = "tide/" + out.name
+    write_user([(k, "tide/" + name) for k in KEYS] + [(("General", "animated-background-placeholder"), ph)])
+    # earlier ones nothing uses any more
+    keep = {name, Path(ph).name}
+    for f in TIDE_DIR.iterdir():
+        if f.is_file() and f.name not in keep:
+            f.unlink()
+    return "tide/" + name
+
+
+def options():
+    cfg = theme_config()
+    u = user_file()
+    out = {}
+    for k in OPTIONS:
+        sec, key = k.split("/")
+        out[k] = ini_get(u, sec, key) or ini_get(cfg, sec, key) or ""
+    for k, sec in (("font", TEXT_FONT_KEYS[2]), ("clock-font", "LockScreen.Clock")):
+        out[k] = ini_get(u, sec, "font-family") or ini_get(cfg, sec, "font-family") or ""
+    print(json.dumps(out))
+    return 0
+
+
+def set_options(args):
+    """k=v ... and background=<file>: everything Settings → Login screen applies at once."""
+    pairs, bg, fonts = [], None, {}
+    for a in args:
+        k, _, v = a.partition("=")
+        if k in ("font", "clock-font"):
+            if v not in FONTS or (FONTS[v] and not (TIDE_FONTS / FONTS[v]).is_file()):
+                print(json.dumps({"error": f"{v} isn't one of Tide's fonts"}))
+                return 1
+            fonts[k] = v
+            continue
+        if k == "background":
+            bg = os.path.abspath(os.path.expanduser(v))
+            if not os.path.isfile(bg) or not (VIDEO.search(bg) or IMAGE.search(bg)):
+                print(json.dumps({"error": "Pick an image or a video file (not a GIF)"}))
+                return 1
+            continue
+        ok = OPTIONS.get(k)
+        if ok is None or not (v in ok if isinstance(ok, set) else ok(v)):
+            print(json.dumps({"error": f"{k} can't be {v!r}"}))
+            return 1
+        pairs.append((tuple(k.split("/")), v))
+    err = setup()
+    if err:
+        print(json.dumps({"error": err}))
+        return 1
+    if fonts:
+        cur = json.loads(_capture(options))
+        want = {"font": fonts.get("font", cur.get("font")), "clock-font": fonts.get("clock-font", cur.get("clock-font"))}
+        for fam in set(want.values()):
+            if FONTS.get(fam):
+                shutil.copyfile(TIDE_FONTS / FONTS[fam], FONT_DIR / Path(FONTS[fam]).name)
+                os.chmod(FONT_DIR / Path(FONTS[fam]).name, 0o644)
+        keep = {Path(FONTS[f]).name for f in want.values() if FONTS.get(f)}
+        for f in FONT_DIR.iterdir():
+            if f.is_file() and f.name not in keep:
+                f.unlink()
+        if "font" in fonts:
+            pairs += [((sec, "font-family"), fonts["font"]) for sec in TEXT_FONT_KEYS]
+        if "clock-font" in fonts:
+            pairs.append((("LockScreen.Clock", "font-family"), fonts["clock-font"]))
+    if pairs:
+        write_user(pairs)
+    if bg:
+        put_background(bg)
+    print(json.dumps({"ok": True}))
+    return 0
+
+
+def _capture(fn):
+    import io, contextlib
+    buf = io.StringIO()
+    with contextlib.redirect_stdout(buf):
+        fn()
+    return buf.getvalue()
+
+
+def root_setup(uid, gid):
+    """As root (pkexec), once: the .user file and backgrounds/tide/ become the user's."""
+    if os.geteuid() != 0 or not THEME.is_dir():
+        return 1
+    uid, gid = int(uid), int(gid)
+    TIDE_DIR.mkdir(exist_ok=True)
+    FONT_DIR.mkdir(parents=True, exist_ok=True)
+    os.chown(FONT_DIR, uid, gid)
+    os.chmod(FONT_DIR, 0o755)
+    u = user_file()
+    if u.is_file() and not Path(str(u) + ".before-tide").exists():
+        shutil.copy2(u, str(u) + ".before-tide")
+    text = u.read_text() if u.is_file() else "; Tide's login screen settings (Settings → Login screen), read on top of the theme's config\n"
+    # backgrounds Tide put in backgrounds/ before: into tide/
+    for f in (THEME / "backgrounds").glob("tide-*"):
+        shutil.move(str(f), TIDE_DIR / f.name)
+        text = text.replace(f'"{f.name}"', f'"tide/{f.name}"')
+    u.write_text(text)
+    for p in [TIDE_DIR, u] + list(TIDE_DIR.iterdir()):
+        os.chown(p, uid, gid)
+    os.chmod(TIDE_DIR, 0o755)
+    os.chmod(u, 0o644)
+    return 0
+
+
+def use():
+    r = subprocess.run(["pkexec", os.path.abspath(__file__), "root-use"], capture_output=True, text=True)
+    if r.returncode != 0:
+        print(json.dumps({"error": "Not changed" if r.returncode in (126, 127) else (r.stderr.strip()[-300:] or "Couldn't change it")}))
+        return 1
+    print(json.dumps({"ok": True}))
+    return 0
+
+
+def root_use():
+    if os.geteuid() != 0 or not THEME.is_dir():
+        return 1
+    d = Path("/etc/sddm.conf.d")
+    d.mkdir(exist_ok=True)
+    (d / "zz-tide-theme.conf").write_text("# Tide: SilentSDDM as the login screen (Settings → Login screen)\n[Theme]\nCurrent=silent\n")
+    return 0
+
+
+def preview(theme):
+    theme = Path(theme or THEME)
+    env = dict(os.environ, QML2_IMPORT_PATH=str(theme / "components"), QT_IM_MODULE="qtvirtualkeyboard")
+    # it has no way out of its own: it closes after 30 s
+    subprocess.Popen(["timeout", "30", "sddm-greeter-qt6", "--test-mode", "--theme", str(theme)], env=env,
+                     stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True)
+    return 0
+
+
+def main(a):
+    if not a or a[0] == "status":
+        print(json.dumps(status()))
+        return 0
+    if a[0] == "set" and len(a) > 1:
+        return set_background(a[1])
+    if a[0] == "options":
+        return options()
+    if a[0] == "set-options":
+        return set_options(a[1:])
+    if a[0] == "root-setup" and len(a) > 2:
+        return root_setup(a[1], a[2])
+    if a[0] == "use":
+        return use()
+    if a[0] == "root-use":
+        return root_use()
+    if a[0] == "preview":
+        return preview(a[1] if len(a) > 1 else "")
+    print(__doc__, file=sys.stderr)
+    return 2
+
+
+if __name__ == "__main__":
+    try:
+        sys.exit(main(sys.argv[1:]))
+    except OSError as e:
+        # Settings shows this instead of a bare "couldn't"
+        print(json.dumps({"error": f"{e.strerror}: {e.filename}" if e.filename else str(e)}))
+        sys.exit(1)

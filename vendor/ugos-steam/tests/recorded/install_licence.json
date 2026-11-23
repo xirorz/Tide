@@ -1,0 +1,27 @@
+{
+ "folder_exists": true,
+ "info": {
+  "apps": [
+   365720
+  ],
+  "error": 0,
+  "error_detail": "",
+  "folder": 1,
+  "free": 363541602304,
+  "needed": 1365702,
+  "state": 7
+ },
+ "installed": false,
+ "licences": [
+  {
+   "id": "365720_eula_0",
+   "url": "http://store.steampowered.com//eula/365720_eula_0?l=english&cc=US&client=1",
+   "version": 0
+  }
+ ],
+ "loaded": true,
+ "name": "Skyrim Script Extender (SKSE)",
+ "owned": true,
+ "quiet": true,
+ "stopped": "licence"
+}

@@ -1,0 +1,18 @@
+{
+ "folder_exists": true,
+ "info": {
+  "apps": [
+   1509960
+  ],
+  "error": 0,
+  "error_detail": "",
+  "folder": 1,
+  "free": 363668860928,
+  "needed": 80009044,
+  "state": 0
+ },
+ "installed": false,
+ "loaded": true,
+ "name": "PICO PARK",
+ "owned": true
+}

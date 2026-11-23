@@ -1,0 +1,41 @@
+# Tide's own colors from the wallpaper (scripts/wallpaper-apply.sh runs
+#   matugen image -c ~/.config/Tide/colors/matugen.toml <wallpaper>
+# after the regular matugen run). Ax-Shell's matugen config is left as it is.
+[config]
+reload_apps = false
+
+[templates.tide-css]
+input_path = "~/.config/Tide/colors/templates/colors.css"
+output_path = "~/.config/Tide/colors/colors.css"
+
+[templates.tide-hyprlock]
+input_path = "~/.config/Tide/colors/templates/hyprlock-colors.conf"
+output_path = "~/.config/Tide/colors/hyprlock-colors.conf"
+
+[config.custom_colors.red]
+color = "#FF0000"
+blend = true
+
+[config.custom_colors.green]
+color = "#00FF00"
+blend = true
+
+[config.custom_colors.yellow]
+color = "#FFFF00"
+blend = true
+
+[config.custom_colors.blue]
+color = "#0000FF"
+blend = true
+
+[config.custom_colors.magenta]
+color = "#FF00FF"
+blend = true
+
+[config.custom_colors.cyan]
+color = "#00FFFF"
+blend = true
+
+[config.custom_colors.white]
+color = "#FFFFFF"
+blend = true

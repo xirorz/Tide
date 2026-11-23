@@ -1,0 +1,12 @@
+{
+  "name": "Dev",
+  "description": "No limits",
+  "hypr": "hypr/hyprland.lua",
+  "start": "qs -p ~/.config/Tide/modes/dev/shell",
+  "match": "^(/usr/bin/)?qs -p /home/[^ ]+/\\.config/Tide/modes/dev/shell$",
+  "art": [
+    "#3C8CE0",
+    "#0E1830"
+  ],
+  "order": 1
+}

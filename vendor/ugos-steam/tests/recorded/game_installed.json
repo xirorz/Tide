@@ -1,0 +1,48 @@
+{
+ "achievements": [
+  {
+   "description": "Allocate a character's fourth Keystone Passive.",
+   "global_percent": 0,
+   "hidden": false,
+   "icon": "https://shared.steamstatic.com/community_assets/images/apps/238960/725f4599f0de431c3ef582b51b19c8c0a1223e0a.jpg",
+   "id": "Allocate4Keystones",
+   "name": "Specialist",
+   "unlocked": true,
+   "unlocked_at": 1732661054
+  },
+  {
+   "description": "Allocate a Keystone Passive Skill.",
+   "global_percent": 0,
+   "hidden": false,
+   "icon": "https://shared.steamstatic.com/community_assets/images/apps/238960/a0ae6f082268d74e3196fff76cc2ccdf80104f93.jpg",
+   "id": "AllocateKeystone",
+   "name": "Paradigm Shift",
+   "unlocked": true,
+   "unlocked_at": 1587309745
+  },
+  {
+   "description": "Discover all environmental lore as one character.",
+   "global_percent": 0,
+   "hidden": false,
+   "icon": "https://shared.steamstatic.com/community_assets/images/apps/238960/dcebdca4b76cf5c0010b8b19cb569f8ce2ac4ca6.jpg",
+   "id": "AllEnvironmentLore",
+   "name": "No Stone Unturned",
+   "unlocked": false,
+   "unlocked_at": 0
+  }
+ ],
+ "folders": [],
+ "overview": {
+  "appid": 238960,
+  "cover": "https://shared.steamstatic.com/store_item_assets/steam/apps/238960/a68e104787836a503364268763f2c5b40174a78a/library_capsule.jpg?t=1794180437",
+  "icon": "https://shared.steamstatic.com/community_assets/images/apps/238960/1110764aac57ac28d7ffd8c43071c75d5482a9c9.jpg",
+  "installed": true,
+  "installed_elsewhere": [],
+  "last_played": 1791152617,
+  "minutes_played": 67408,
+  "name": "Path of Exile",
+  "size_on_disk": 71627951692,
+  "type": 1
+ },
+ "owned": true
+}

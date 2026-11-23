@@ -1,0 +1,39 @@
+#!/usr/bin/env bash
+# One line of text for the lock screen (hyprlock labels call this every few seconds).
+#   tide-lockinfo media     what's playing:   󰎆  Artist — Title
+#   tide-lockinfo status    connection and device batteries:   󰈀 Ethernet    󰋋 69%   󰍽 48%
+case "$1" in
+    media)
+        line=$(playerctl metadata --format '{{artist}} — {{title}}' 2>/dev/null | head -1)
+        line=${line#" — "}
+        [ -n "$line" ] && [ "$(playerctl status 2>/dev/null)" = Playing ] && printf '󰎆  %s' "$line"
+        ;;
+    status)
+        out=""
+        # connection: the first connected ethernet or wifi device
+        while IFS=: read -r type state conn; do
+            [ "$state" = connected ] || continue
+            case "$type" in
+                ethernet) out="󰈀  Ethernet"; break ;;
+                wifi) out="󰖩  ${conn:-Wi-Fi}"; break ;;
+            esac
+        done < <(nmcli -t -f TYPE,STATE,CONNECTION device 2>/dev/null)
+        [ -n "$out" ] || out="󰖪  Offline"
+        # wireless device batteries (same source as the bar)
+        for d in /sys/class/power_supply/*; do
+            [ "$(cat "$d/scope" 2>/dev/null)" = Device ] || continue
+            [ "$(cat "$d/present" 2>/dev/null)" = 0 ] && continue
+            cap=$(cat "$d/capacity" 2>/dev/null) || continue
+            name="$(basename "$d") $(cat "$d/model_name" 2>/dev/null)"
+            case "${name,,}" in
+                *headset*|*headphone*|*void*|*arctis*|*buds*) icon="󰋋" ;;
+                *mouse*|*hidpp*|*g502*) icon="󰍽" ;;
+                *controller*|*gamepad*|*dualsense*|*xbox*) icon="󰊴" ;;
+                *keyboard*) icon="󰌌" ;;
+                *) continue ;;
+            esac
+            out="$out     $icon $cap%"
+        done
+        printf '%s' "$out"
+        ;;
+esac

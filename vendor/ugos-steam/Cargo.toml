@@ -1,0 +1,30 @@
+# Tide's copy of ugos-steam (originally from the owner's console project), standalone:
+# the Steam client's library, installs and launches for the game launcher.
+# Build: ~/.config/Tide/bin/build-tide-steam (needs a Rust toolchain).
+[package]
+name = "ugos-steam"
+description = "Steam for Tide's game launcher: library, installs and launches through the running Steam client"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.85"
+
+[[bin]]
+name = "tide-steam"
+path = "src/main.rs"
+
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+clap = { version = "4", features = ["derive", "env"] }
+libc = "0.2"
+thiserror = "1"
+
+[dev-dependencies]
+tempfile = "3"
+
+[profile.release]
+opt-level = "s"
+lto = true
+codegen-units = 1
+strip = true
+panic = "abort"

@@ -1,0 +1,38 @@
+{
+ "achievements": [
+  {
+   "description": "Take control of the nautiloid and escape the Hells.",
+   "global_percent": 0,
+   "hidden": false,
+   "icon": "https://shared.steamstatic.com/community_assets/images/apps/1086940/0cb31fd9ec036550a374aa702a37464a98da3bfa.jpg",
+   "id": "BG3_Quest01",
+   "name": "Descent From Avernus",
+   "unlocked": true,
+   "unlocked_at": 1692382722
+  },
+  {
+   "description": "Leave Act I - for somewhere altogether darker.",
+   "global_percent": 0,
+   "hidden": true,
+   "icon": "https://shared.steamstatic.com/community_assets/images/apps/1086940/628cdbbfd2e731735e4817252ce6633bf3bcd8ed.jpg",
+   "id": "BG3_Quest02",
+   "name": "The Plot Thickens",
+   "unlocked": true,
+   "unlocked_at": 1693032742
+  }
+ ],
+ "folders": [],
+ "overview": {
+  "appid": 1086940,
+  "cover": "https://shared.steamstatic.com/store_item_assets/steam/apps/1086940/library_600x900.jpg?t=1777363017",
+  "icon": "https://shared.steamstatic.com/community_assets/images/apps/1086940/d866cae7ea1e471fdbc206287111f1b642373bd9.jpg",
+  "installed": false,
+  "installed_elsewhere": [],
+  "last_played": 1761094351,
+  "minutes_played": 27004,
+  "name": "Baldur's Gate 3",
+  "size_on_disk": 0,
+  "type": 1
+ },
+ "owned": true
+}

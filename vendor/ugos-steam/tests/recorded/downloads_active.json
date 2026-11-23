@@ -1,0 +1,70 @@
+{
+ "appid": 1509960,
+ "bytes_per_second": 0,
+ "installing": false,
+ "items": [
+  {
+   "active": false,
+   "appid": 238960,
+   "bytes_done": 0,
+   "bytes_total": 10181981,
+   "completed": false,
+   "error": "",
+   "name": "Path of Exile",
+   "paused": false,
+   "queue_index": -1,
+   "scheduled_for": 1794486732
+  },
+  {
+   "active": false,
+   "appid": 365670,
+   "bytes_done": 0,
+   "bytes_total": 164115008,
+   "completed": false,
+   "error": "",
+   "name": "Blender",
+   "paused": false,
+   "queue_index": -1,
+   "scheduled_for": 1794396500
+  },
+  {
+   "active": false,
+   "appid": 1070560,
+   "bytes_done": 0,
+   "bytes_total": 11571136,
+   "completed": false,
+   "error": "",
+   "name": "Steam Linux Runtime 1.0 (scout)",
+   "paused": true,
+   "queue_index": -1,
+   "scheduled_for": 0
+  },
+  {
+   "active": true,
+   "appid": 1509960,
+   "bytes_done": 0,
+   "bytes_total": 0,
+   "completed": false,
+   "error": "",
+   "name": "PICO PARK",
+   "paused": false,
+   "queue_index": 0,
+   "scheduled_for": 0
+  },
+  {
+   "active": false,
+   "appid": 2694490,
+   "bytes_done": 63402397792,
+   "bytes_total": 63402397792,
+   "completed": true,
+   "error": "",
+   "name": "Path of Exile 2",
+   "paused": false,
+   "queue_index": -1,
+   "scheduled_for": 0
+  }
+ ],
+ "paused": false,
+ "percent": 0,
+ "state": "Starting"
+}

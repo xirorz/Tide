@@ -1,0 +1,40 @@
+# ---- not part of Tide (stays on this PC only) ----
+# Eve Live: the island's live mode is a local add-on (the AI panel and EVE_WIRING.md ship)
+modes/dev/shell/island/EveLive.qml
+
+# the old Ax-Shell setup and its restore notes
+modes/ax-classic/
+
+# design files and the design spec (kept local for now)
+design/
+Hyprland Mode System — Design Spec.md
+
+# ---- per-user state and settings (Tide makes them on first use) ----
+/mode
+/ai.json
+/emulators.json
+/notifications.json
+modes/dev/theme.json
+# saved themes other than Dev are personal
+modes/*/
+!modes/dev/
+# colours generated from the wallpaper (the templates and matugen.toml ship)
+colors/colors.css
+colors/hyprlock-colors.conf
+# a monitor-input switcher made for one specific monitor
+bin/switch-monitor-input.sh
+bin/monitor-input.css
+
+# ---- builds ----
+bin/tide-steam
+vendor/ugos-steam/target/
+
+# ---- backups, caches, logs ----
+*.bak
+*.before-*
+*.before-tide*
+*.tmp
+*.log
+__pycache__/
+*.pyc
+node_modules/

@@ -1,0 +1,797 @@
+#!/usr/bin/env python3
+"""Tide's mode manager: switch the whole setup between modes (the island calls them themes).
+
+  tide-mode                      show the active mode
+  tide-mode list [--json] [--all]  the modes in ~/.config/Tide/modes/*/mode.json (--all: hidden too)
+  tide-mode <id> [--dry-run]     switch to a mode (--dry-run only prints the steps); a mode
+                                 that locks you in asks in the island first (Start / Cancel)
+                                 unless --confirmed (the island's Start) or --scheduled
+  tide-mode nth <n>              switch to the n-th mode in picker order (Mod+Ctrl+n)
+  tide-mode save < spec.json     save the current setup as a new theme (the Settings wizard);
+                                 with "id" in the spec, update that theme (Edit)
+  tide-mode get <id>             one theme's mode.json
+  tide-mode delete <id>          remove a saved theme (not Dev or Ax-Classic)
+  tide-mode end [--emergency]    end the running session and go back to the theme before it
+  tide-mode session              the running session as JSON ({} when none); a session from
+                                 before a reboot or new login is cleared first (the shell
+                                 asks this when it starts)
+
+A mode is a folder in ~/.config/Tide/modes with a mode.json:
+  name, description   shown in the island's theme picker
+  hypr                its Hyprland config, relative to ~/.config/Tide
+                      (~/.config/hypr/hyprland.lua loads it for the active mode)
+  start               the command that starts its shell
+  match | process     how to find that shell running (pgrep -f regex | exact name)
+  art                 two colors for the picker card
+  order               position in the picker
+  hidden              true: not in Tide's UI or the Mod+Ctrl numbers (Ax-Classic);
+                      `tide-mode <id>` still switches to it
+
+A theme saved from the wizard has "base": "dev" instead: it runs Dev's shell and
+Hyprland config with its own captured setup on top:
+  captures            which parts it keeps: widgets, wallpaper, bar, surface, windows, monitors,
+                      cursor, gtk, icons, qt (the look: kept as each place's raw value; leaving a
+                      theme that changed one puts Dev's back)
+  settings            the Dev settings (theme.json keys) for those parts
+  wallpaper           the wallpaper file
+  windows             apps to open and where: [{class, command, workspace}]
+  monitors            the monitor lines it restores (hl.monitor tables)
+  limit, apps         "Only allow these apps": [{name, class, id, exe, command}]; a window
+                      counts as allowed if its class or title matches any of them
+  tools               Tide tools allowed while it runs: calculator, clipboard, capture,
+                      dictation, eve, wallpapers, widgets
+  duration            minutes (0 = no timer); days ([0-6], Sunday = 0) and time ("19:00")
+                      start it on a schedule
+  lockout             no switching until time is up (emergency exit: hold Mod+Esc 5 s)
+
+Each Dev-family theme keeps its own setup: switching away saves what changed while it
+was on (Dev itself remembers everything a theme can capture).
+
+Switching: write the new mode, check the Hyprland config (and go back if it fails),
+stop every other mode's shell, reload Hyprland, start the new shell. A theme with a
+timer, app limit or lockout starts a session (~/.local/state/tide/session.json): apps
+that aren't allowed are set aside on a hidden workspace until it ends, and the shell
+counts down and ends it.
+"""
+import json, os, re, shlex, shutil, subprocess, sys, time
+from pathlib import Path
+
+TIDE = Path.home() / ".config/Tide"
+STATE = TIDE / "mode"
+LOADER = Path.home() / ".config/hypr/hyprland.lua"
+DEV_THEME = TIDE / "modes/dev/theme.json"
+STATE_DIR = Path.home() / ".local/state/tide"
+SESSION = STATE_DIR / "session.json"
+RECENT_WALL = STATE_DIR / "wallpapers-recent"
+WALL_APPLY = TIDE / "modes/dev/shell/scripts/wallpaper-apply.sh"
+BUILTIN = {"dev", "ax-classic"}
+TOOLS = ("calculator", "clipboard", "capture", "dictation", "eve", "wallpapers", "widgets")
+TOOL_DEFAULTS = {"calculator": True, "clipboard": True, "capture": True, "dictation": True, "eve": False, "wallpapers": False, "widgets": False}
+
+
+def app_tokens(a):
+    """Every name an allowed app's windows might carry, lowercased: its window class,
+    desktop ID (and its last part), the executable's name, and the app's name.
+    PhotoCraft's desktop file says StartupWMClass=photocraft but its windows say
+    ai.storyteller.photocraft, so one name alone isn't enough."""
+    out = set()
+    for v in (a.get("class"), a.get("id"), a.get("name")):
+        if v:
+            v = v.lower().removesuffix(".desktop")
+            out.add(v)
+            out.add(v.split(".")[-1])
+    cmd = a.get("exe") or (a.get("command") or "").split(" ")[0].strip("'\"")
+    if cmd:
+        base = os.path.basename(cmd).lower()
+        out.add(base)
+        m = re.match(r"[a-z][a-z0-9_-]*?(?=[-_.]?\d|\.appimage|$)", base)
+        if m and len(m.group(0)) > 2:
+            out.add(m.group(0).rstrip("-_"))
+    out.discard("")
+    return out
+
+
+def allowed_window(c, tokens):
+    names = {(c.get("class") or "").lower(), (c.get("initialClass") or "").lower()}
+    names |= {n.split(".")[-1] for n in names}
+    if names & tokens:
+        return True
+    title = (c.get("title") or "").lower()
+    return any(len(t) > 3 and t in title for t in tokens)
+HIDDEN = "special:tidehidden"
+
+# what each "capture" part means in Dev's theme.json
+PARTS = {
+    "widgets": ["widgets"],
+    "wallpaper": ["walAccent", "accentFallback", "accentFromWallpaper", "walEq", "netDown", "netUp"],
+    "bar": ["barStyle", "workspaceCount"],
+    "surface": ["surface", "glassBlur", "roundness", "shadows"],
+}
+
+
+def read_json(p, default):
+    try:
+        return json.loads(Path(p).read_text())
+    except Exception:
+        return default
+
+
+def write_json(p, data):
+    p = Path(p)
+    p.parent.mkdir(parents=True, exist_ok=True)
+    tmp = p.with_suffix(p.suffix + ".tmp")
+    tmp.write_text(json.dumps(data, indent=2) + "\n")
+    tmp.replace(p)
+
+
+def modes():
+    out = {}
+    for f in sorted((TIDE / "modes").glob("*/mode.json")):
+        try:
+            m = json.loads(f.read_text())
+        except Exception as e:
+            print(f"tide-mode: skipping {f}: {e}", file=sys.stderr)
+            continue
+        m["id"] = f.parent.name
+        m["file"] = str(f)
+        out[m["id"]] = m
+    # a theme built on Dev runs Dev's shell and Hyprland config
+    for m in out.values():
+        base = out.get(m.get("base", ""))
+        if base:
+            for k in ("hypr", "start", "match", "process"):
+                if k in base and k not in m:
+                    m[k] = base[k]
+    return dict(sorted(out.items(), key=lambda kv: (kv[1].get("order", 99), kv[0])))
+
+
+def family(m):
+    return "dev" if m["id"] == "dev" or m.get("base") == "dev" else m["id"]
+
+
+def active():
+    try:
+        return STATE.read_text().strip() or "dev"
+    except OSError:
+        return "dev"
+
+
+def find_cmd(m):
+    if m.get("process"):
+        return ["pgrep", "-x", m["process"]]
+    if m.get("match"):
+        return ["pgrep", "-f", m["match"]]
+    return None
+
+
+def running(m):
+    c = find_cmd(m)
+    return bool(c) and subprocess.run(c, capture_output=True).returncode == 0
+
+
+def stop(m, dry):
+    c = find_cmd(m)
+    if not c or not running(m):
+        return
+    kill = ["pkill"] + c[1:]
+    print("stop   " + m["id"] + ":", shlex.join(kill))
+    if not dry:
+        subprocess.run(kill)
+
+
+def verify():
+    r = subprocess.run(["Hyprland", "--verify-config", "-c", str(LOADER)], capture_output=True, text=True)
+    return "config ok" in (r.stdout + r.stderr), (r.stdout + r.stderr).strip()
+
+
+def hypr_json(what):
+    r = subprocess.run(["hyprctl", what, "-j"], capture_output=True, text=True)
+    try:
+        return json.loads(r.stdout)
+    except ValueError:
+        return []
+
+
+def dispatch(lua):
+    subprocess.run(["hyprctl", "dispatch", lua], capture_output=True)
+
+
+def lua_str(s):
+    return json.dumps(str(s))
+
+
+def current_wallpaper():
+    try:
+        return RECENT_WALL.read_text().splitlines()[0].strip()
+    except (OSError, IndexError):
+        return ""
+
+
+# ---------- sessions (timer, app limit, lockout) ----------
+def boot_id():
+    try:
+        return Path("/proc/sys/kernel/random/boot_id").read_text().strip()
+    except OSError:
+        return ""
+
+
+def clear_if_rebooted():
+    """A session never outlives a reboot or a new login: the windows it set aside are
+    gone, so go back to the theme from before it (its settings too) and forget it.
+    A plain Tide restart (same boot) keeps the session."""
+    s = read_json(SESSION, {})
+    if not s or not s.get("boot") or s["boot"] == boot_id():
+        return
+    prev = s.get("previous") or "dev"
+    ms = modes()
+    if active() == s.get("theme") and prev in ms:
+        apply_incoming(ms[prev], False)
+        STATE.write_text(prev + "\n")
+    try:
+        SESSION.unlink()
+    except OSError:
+        pass
+    try:
+        STATE_DIR.mkdir(parents=True, exist_ok=True)
+        with open(STATE_DIR / "modes.log", "a") as f:
+            f.write(f"{time.strftime('%F %T')} session cleared after reboot ({s.get('name', s.get('theme'))}; back to {prev})\n")
+    except OSError:
+        pass
+
+
+def session():
+    s = read_json(SESSION, {})
+    if s and s.get("endsAt") and time.time() > s["endsAt"] + 3600:
+        return {}  # long stale (the shell wasn't running to end it)
+    return s
+
+
+def locked():
+    s = session()
+    return bool(s.get("lockout")) and time.time() < s.get("endsAt", 0)
+
+
+def hide_windows(tokens):
+    """Set aside every window that isn't an allowed app's; returns where they were."""
+    moved = []
+    for c in hypr_json("clients"):
+        cls = c.get("class", "")
+        ws = c.get("workspace", {}).get("name", "")
+        if not cls or allowed_window(c, tokens) or ws.startswith("special:") or cls == "org.quickshell":
+            continue
+        moved.append({"address": c["address"], "workspace": ws, "class": cls})
+        dispatch("hl.dsp.window.move({ workspace = %s, window = %s, follow = false })" % (lua_str(HIDDEN), lua_str("address:" + c["address"])))
+    return moved
+
+
+def restore_windows(s):
+    here = {c["address"] for c in hypr_json("clients")}
+    for w in s.get("hidden", []):
+        if w["address"] in here:
+            dispatch("hl.dsp.window.move({ workspace = %s, window = %s, follow = false })" % (lua_str(w["workspace"]), lua_str("address:" + w["address"])))
+    # anything else still set aside comes back to workspace 1
+    listed = {w["address"] for w in s.get("hidden", [])}
+    for c in hypr_json("clients"):
+        if c.get("workspace", {}).get("name") == HIDDEN and c["address"] not in listed:
+            dispatch("hl.dsp.window.move({ workspace = \"1\", window = %s, follow = false })" % lua_str("address:" + c["address"]))
+
+
+# ---------- capturing and applying a Dev-family theme ----------
+def capture_settings(parts):
+    cur = read_json(DEV_THEME, {})
+    out = {}
+    for p in parts:
+        for k in PARTS.get(p, []):
+            if k in cur:
+                out[k] = cur[k]
+    return out
+
+
+def desktop_exec(cls):
+    """The command that opens an app, from its desktop entry (matched by window class)."""
+    dirs = [Path.home() / ".local/share/applications", Path("/usr/share/applications"),
+            Path.home() / ".local/share/flatpak/exports/share/applications", Path("/var/lib/flatpak/exports/share/applications")]
+    want = cls.lower()
+    best = None
+    for d in dirs:
+        for f in d.glob("*.desktop") if d.is_dir() else []:
+            try:
+                t = f.read_text(errors="replace")
+            except OSError:
+                continue
+            main = t.split("\n[", 1)[0]
+            wm = re.search(r"^StartupWMClass=(.*)$", main, re.M)
+            ex = re.search(r"^Exec=(.*)$", main, re.M)
+            if not ex:
+                continue
+            cmd = re.sub(r"\s*%[fFuUdDnNickvm]", "", ex.group(1)).strip()
+            if wm and wm.group(1).strip().lower() == want:
+                return cmd
+            if f.stem.lower() == want or f.stem.lower().split(".")[-1] == want:
+                best = best or cmd
+    return best or cls.lower()
+
+
+def capture_windows():
+    seen, out = set(), []
+    for c in sorted(hypr_json("clients"), key=lambda c: (c.get("workspace", {}).get("id", 99), c.get("at", [0, 0]))):
+        cls = c.get("class", "")
+        ws = c.get("workspace", {}).get("name", "")
+        if not cls or cls in seen or cls == "org.quickshell" or ws.startswith("special:"):
+            continue
+        seen.add(cls)
+        out.append({"class": cls, "command": desktop_exec(cls), "workspace": ws})
+    return out
+
+
+def capture_monitors():
+    out = []
+    for m in hypr_json("monitors"):
+        out.append({"output": m["name"], "mode": "%dx%d@%.2f" % (m["width"], m["height"], m["refreshRate"]),
+                    "position": "%dx%d" % (m["x"], m["y"]), "scale": m["scale"]})
+    return out
+
+
+# ---- the look: cursor, GTK theme, icons, Qt style ----
+# Each part is the raw value of every place it lives, so putting one back is exact.
+# A place is "gs:<key>" (gsettings org.gnome.desktop.interface) or "ini:<file>|<section>|<key>"
+# (a file that isn't there, or a key that isn't set, is None: left out / taken out again).
+# Only places that exist on this PC are used: no assumption about qt5ct, qt6ct or Kvantum.
+CFG = Path.home() / ".config"
+GTK3, GTK4 = CFG / "gtk-3.0/settings.ini", CFG / "gtk-4.0/settings.ini"
+QT5, QT6 = CFG / "qt5ct/qt5ct.conf", CFG / "qt6ct/qt6ct.conf"
+KVANTUM = CFG / "Kvantum/kvantum.kvconfig"
+CURSOR_DEFAULT = Path.home() / ".local/share/icons/default/index.theme"
+LOOK_PARTS = ("cursor", "gtk", "icons", "qt")
+
+
+def look_places(part):
+    ini = lambda f, sec, key: [f"ini:{f}|{sec}|{key}"] if f.is_file() else []
+    gs = lambda key: [f"gs:{key}"] if shutil.which("gsettings") else []
+    gtk = lambda key: ini(GTK3, "Settings", key) + ini(GTK4, "Settings", key)
+    if part == "cursor":
+        return gs("cursor-theme") + gs("cursor-size") + gtk("gtk-cursor-theme-name") + gtk("gtk-cursor-theme-size") + ini(CURSOR_DEFAULT, "Icon Theme", "Inherits")
+    if part == "gtk":
+        return gs("gtk-theme") + gtk("gtk-theme-name")
+    if part == "icons":
+        return gs("icon-theme") + gtk("gtk-icon-theme-name") + ini(QT5, "Appearance", "icon_theme") + ini(QT6, "Appearance", "icon_theme")
+    if part == "qt":
+        return ini(QT5, "Appearance", "style") + ini(QT6, "Appearance", "style") + ini(KVANTUM, "General", "theme")
+    return []
+
+
+def ini_get(f, sec, key):
+    cur = None
+    for line in Path(f).read_text(errors="replace").splitlines():
+        t = line.strip()
+        if t.startswith("[") and t.endswith("]"):
+            cur = t[1:-1]
+        elif cur == sec and "=" in t and t.split("=", 1)[0].strip() == key:
+            return t.split("=", 1)[1].strip()
+    return None
+
+
+def ini_set(f, sec, key, value):
+    """Change one key in place (the rest of the file stays as it is); None takes it out."""
+    f = Path(f)
+    lines = f.read_text(errors="replace").splitlines()
+    cur, at, sec_end = None, None, None
+    for i, line in enumerate(lines):
+        t = line.strip()
+        if t.startswith("[") and t.endswith("]"):
+            if cur == sec and sec_end is None:
+                sec_end = i
+            cur = t[1:-1]
+        elif cur == sec and "=" in t and t.split("=", 1)[0].strip() == key:
+            at = i
+    if cur == sec and sec_end is None:
+        sec_end = len(lines)
+    if at is not None:
+        if value is None:
+            del lines[at]
+        else:
+            lines[at] = f"{key}={value}"
+    elif value is not None:
+        if sec_end is None:
+            lines += ["", f"[{sec}]"]
+            sec_end = len(lines)
+        while sec_end > 0 and not lines[sec_end - 1].strip():
+            sec_end -= 1
+        lines.insert(sec_end, f"{key}={value}")
+    else:
+        return
+    backup = f.with_name(f.name + ".before-tide-look")
+    if not backup.exists():
+        shutil.copy2(f, backup)
+    f.write_text("\n".join(lines) + "\n")
+
+
+def place_get(pl):
+    if pl.startswith("gs:"):
+        r = subprocess.run(["gsettings", "get", "org.gnome.desktop.interface", pl[3:]], capture_output=True, text=True)
+        return r.stdout.strip() if r.returncode == 0 else None
+    f, sec, key = pl[4:].split("|")
+    return ini_get(f, sec, key) if Path(f).is_file() else None
+
+
+def place_set(pl, value):
+    if pl.startswith("gs:"):
+        if value is not None:
+            subprocess.run(["gsettings", "set", "org.gnome.desktop.interface", pl[3:], value], capture_output=True)
+        return
+    f, sec, key = pl[4:].split("|")
+    if Path(f).is_file() and ini_get(f, sec, key) != value:
+        ini_set(f, sec, key, value)
+
+
+def capture_look(parts):
+    return {p: {pl: place_get(pl) for pl in look_places(p)} for p in parts if p in LOOK_PARTS}
+
+
+def apply_look(look, dry):
+    for part, places in look.items():
+        now = {pl: place_get(pl) for pl in places}
+        diff = sorted(pl for pl, v in places.items() if now[pl] != v)
+        if not diff:
+            continue
+        print(f"look   {part}: " + ", ".join(diff))
+        if dry:
+            continue
+        if part == "cursor":
+            # running apps: Hyprland's own cursor now (the files cover apps started later).
+            # First: Hyprland copies it into gsettings, which are then set to the kept values.
+            name = next((v for k, v in places.items() if k.endswith("|gtk-cursor-theme-name") and v), None) \
+                or next((v for k, v in places.items() if k.endswith("|Inherits") and v), None) \
+                or (places.get("gs:cursor-theme") or "").strip("'") or None
+            size = next((v for k, v in places.items() if k.endswith("|gtk-cursor-theme-size") and v), None) \
+                or places.get("gs:cursor-size") or os.environ.get("XCURSOR_SIZE") or "24"
+            if name:
+                subprocess.run(["hyprctl", "setcursor", name, str(size)], capture_output=True)
+                time.sleep(0.3)
+            diff = sorted(pl for pl, v in places.items() if place_get(pl) != v)
+        for pl in diff:
+            place_set(pl, places[pl])
+
+
+def incoming_look(m, out):
+    """The look to put on: the parts the theme keeps; the parts the theme it replaces had
+    changed go back to Dev's."""
+    if family(m) != "dev":
+        return {}
+    keeps = lambda x: [p for p in LOOK_PARTS if x and (x["id"] == "dev" or (x.get("captures") or {}).get(p))]
+    look = {p: (m.get("look") or {}).get(p) for p in keeps(m) if (m.get("look") or {}).get(p)}
+    dev = read_json(TIDE / "modes/dev/mode.json", {}).get("look") or {}
+    for p in keeps(out):
+        if p not in look and dev.get(p):
+            look[p] = dev[p]
+    return look
+
+
+def save_outgoing(m):
+    """Keep what changed while a Dev-family theme was on, in that theme."""
+    if family(m) != "dev":
+        return
+    parts = list(PARTS) if m["id"] == "dev" else [p for p, on in (m.get("captures") or {}).items() if on and p in PARTS]
+    data = read_json(m["file"], {})
+    data["settings"] = dict(data.get("settings", {}), **capture_settings(parts))
+    lp = list(LOOK_PARTS) if m["id"] == "dev" else [p for p, on in (m.get("captures") or {}).items() if on and p in LOOK_PARTS]
+    if lp:
+        data["look"] = dict(data.get("look") or {}, **capture_look(lp))
+    if m["id"] == "dev" or (m.get("captures") or {}).get("wallpaper"):
+        w = current_wallpaper()
+        if w:
+            data["wallpaper"] = w
+    write_json(m["file"], data)
+
+
+def apply_incoming(m, dry, out=None):
+    if family(m) != "dev":
+        return
+    apply_look(incoming_look(m, out), dry)
+    settings = m.get("settings") or {}
+    if settings:
+        print("set    theme.json: " + ", ".join(sorted(settings)))
+        if not dry:
+            cur = read_json(DEV_THEME, {})
+            cur.update(settings)
+            write_json(DEV_THEME, cur)
+    w = m.get("wallpaper")
+    if w and w != current_wallpaper() and Path(w).is_file():
+        print("wall   " + w)
+        if not dry:
+            subprocess.Popen(["bash", str(WALL_APPLY), w, "all", "fade", "0"], stdout=subprocess.DEVNULL,
+                             stderr=subprocess.DEVNULL, start_new_session=True)
+    for mon in m.get("monitors") or []:
+        print("mon    " + mon["output"] + " " + mon["mode"])
+        if not dry:
+            dispatch("hl.monitor({ output = %s, mode = %s, position = %s, scale = %s })" % (
+                lua_str(mon["output"]), lua_str(mon["mode"]), lua_str(mon["position"]), lua_str(mon["scale"])))
+
+
+def open_apps(m, dry):
+    """Open the theme's apps where they were saved (or the allowed apps), unless already open."""
+    clients = hypr_json("clients")
+    wanted = list(m.get("windows") or [])
+    if m.get("limit"):
+        for a in m.get("apps") or []:
+            if a.get("command") and not any(app_tokens(a) & app_tokens({"class": w.get("class")}) for w in wanted):
+                wanted.append({"class": a["class"], "command": a["command"], "workspace": "", "app": a})
+    for w in wanted:
+        toks = app_tokens(w.get("app") or {"class": w.get("class"), "command": w.get("command")})
+        if not w.get("command") or any(allowed_window(c, toks) for c in clients):
+            continue
+        rules = '{ workspace = %s }' % lua_str(w["workspace"] + " silent") if w.get("workspace") else "{}"
+        print("open   " + w["command"] + (" on " + w["workspace"] if w.get("workspace") else ""))
+        if not dry:
+            dispatch("hl.dsp.exec_cmd(%s, %s)" % (lua_str(w["command"]), rules))
+
+
+def start_session(m, previous, dry):
+    if not (m.get("duration") or m.get("limit") or m.get("lockout")):
+        return
+    tokens = set()
+    for a in m.get("apps") or []:
+        tokens |= app_tokens(a)
+    allowed = sorted(tokens)
+    tools = dict(TOOL_DEFAULTS, **(m.get("tools") or {})) if m.get("limit") else {t: True for t in TOOLS}
+    s = {"theme": m["id"], "name": m.get("name", m["id"]), "previous": previous, "started": int(time.time()), "tools": tools, "boot": boot_id(),
+         "endsAt": int(time.time() + 60 * m["duration"]) if m.get("duration") else 0,
+         "lockout": bool(m.get("lockout")) and bool(m.get("duration")), "limit": bool(m.get("limit")), "allowed": allowed}
+    print("start  session" + (f" {m['duration']} min" if m.get("duration") else "") + (", app limit" if s["limit"] else "") + (", locked in" if s["lockout"] else ""))
+    if dry:
+        return
+    if s["limit"]:
+        s["hidden"] = hide_windows(tokens)
+    write_json(SESSION, s)
+
+
+def end_session(dry):
+    s = session()
+    if not s:
+        return
+    print("end    session " + s.get("theme", ""))
+    if dry:
+        return
+    restore_windows(s)
+    try:
+        SESSION.unlink()
+    except OSError:
+        pass
+
+
+def log_switch(target, how):
+    """~/.local/state/tide/modes.log: when, which theme, and what asked (the parent process)."""
+    try:
+        parent = Path(f"/proc/{os.getppid()}/cmdline").read_bytes().replace(b"\0", b" ").decode(errors="replace").strip()
+        STATE_DIR.mkdir(parents=True, exist_ok=True)
+        with open(STATE_DIR / "modes.log", "a") as f:
+            f.write(f"{time.strftime('%F %T')} {active()} -> {target} ({how}; from: {parent[:120]})\n")
+    except OSError:
+        pass
+
+
+def ask_first(m):
+    """A lock-in started by hand asks in the island first; the island's Start runs
+    tide-mode again with --confirmed. False when there's no Tide shell to ask."""
+    shell = TIDE / "modes/dev/shell"
+    r = subprocess.run(["qs", "-p", str(shell), "ipc", "call", "session", "askStart", m["id"]], capture_output=True, text=True)
+    return r.returncode == 0 and "not found" not in (r.stdout + r.stderr).lower()
+
+
+def switch(target, dry, force=False, new_session=True, confirmed=False):
+    ms = modes()
+    if target not in ms:
+        print(f"tide-mode: no mode called {target!r}. Modes: {', '.join(ms)}", file=sys.stderr)
+        return 1
+    if locked() and not force:
+        s = session()
+        left = max(0, int((s["endsAt"] - time.time()) / 60))
+        print(f"tide-mode: {s.get('name')} is locked in for {left} more min (emergency exit: hold Mod+Esc for 5 s)", file=sys.stderr)
+        return 2
+    m = ms[target]
+    if not dry and not confirmed and new_session and m.get("lockout") and m.get("duration") and active() != target:
+        if ask_first(m):
+            print(f"asked: start {target}? (Start / Cancel in the island)")
+            return 0
+    hypr = TIDE / m.get("hypr", "")
+    if not m.get("hypr") or not hypr.is_file():
+        print(f"tide-mode: {target} has no Hyprland config at {hypr}", file=sys.stderr)
+        return 1
+    before = active()
+    out = ms.get(before)
+    start = os.path.expanduser(m.get("start", ""))
+    if dry:
+        print(f"mode   {before} -> {target}")
+        if out:
+            print(f"save   {before}'s setup" if family(out) == "dev" else "")
+        end_session(True)
+        apply_incoming(m, True, out)
+        print(f"write  {STATE}")
+        print(f"check  Hyprland --verify-config (loads {hypr})")
+        for other in ms.values():
+            if family(other) != family(m):
+                stop(other, True)
+        print("reload hyprctl reload")
+        print("start  " + (f"{start} (already running)" if running(m) else f"uwsm-app -- {start}"))
+        open_apps(m, True)
+        if new_session:
+            start_session(m, before, True)
+        return 0
+
+    if target == before and not session():
+        print(f"mode: {target}")
+        return 0
+    log_switch(target, "end of session" if not new_session else "switch")
+    if out:
+        save_outgoing(out)
+    end_session(False)
+    STATE.write_text(target + "\n")
+    ok, msg = verify()
+    if not ok:
+        STATE.write_text(before + "\n")
+        print(f"tide-mode: {target}'s Hyprland config doesn't load, staying on {before}:\n{msg}", file=sys.stderr)
+        return 1
+    apply_incoming(m, False, out)
+    for other in ms.values():
+        if family(other) != family(m):
+            stop(other, False)
+    subprocess.run(["hyprctl", "reload"], capture_output=True)
+    if start and not running(m):
+        subprocess.Popen(["uwsm-app", "--", "sh", "-c", start], stdout=subprocess.DEVNULL,
+                         stderr=subprocess.DEVNULL, start_new_session=True)
+    open_apps(m, False)
+    # going back after a session (time up, emergency exit) never starts another one
+    if new_session:
+        start_session(m, before if before != target else "dev", False)
+    print(f"mode: {target}")
+    return 0
+
+
+def slug(name):
+    s = re.sub(r"[^a-z0-9]+", "-", name.lower()).strip("-") or "theme"
+    base, n = s, 2
+    while (TIDE / "modes" / s).exists() or s in BUILTIN:
+        s = f"{base}-{n}"
+        n += 1
+    return s
+
+
+def save(spec):
+    name = (spec.get("name") or "New theme").strip()[:40]
+    caps = {k: bool(spec.get("captures", {}).get(k)) for k in ("widgets", "wallpaper", "bar", "surface", "windows", "monitors") + LOOK_PARTS}
+    tid = spec.get("id") or ""
+    ms = modes()
+    old = {}
+    if tid:
+        if tid not in ms or ms[tid].get("base") != "dev":
+            print(f"tide-mode: no saved theme called {tid!r}", file=sys.stderr)
+            return 1
+        if session().get("theme") == tid and locked():
+            print(f"tide-mode: {ms[tid].get('name')} is locked in until time is up", file=sys.stderr)
+            return 2
+        old = read_json(ms[tid]["file"], {})
+    # save the current Dev setup first so what's captured is what's on screen now
+    cur = active()
+    if cur in ms and cur != tid:
+        save_outgoing(ms[cur])
+    if tid == cur:
+        save_outgoing(ms[cur])
+        old = read_json(ms[tid]["file"], {})
+    was = old.get("captures") or {}
+    # Edit: parts that stay ticked keep what was captured; newly ticked parts come from now
+    settings = {}
+    for p in (p for p, on in caps.items() if on and p in PARTS):
+        keep = {k: v for k, v in (old.get("settings") or {}).items() if k in PARTS[p]} if was.get(p) else {}
+        settings.update(keep or capture_settings([p]))
+    m = {
+        "name": name,
+        "description": spec.get("description", ""),
+        "base": "dev",
+        "art": old.get("art") or spec.get("art") or ["#3C8CE0", "#0E1830"],
+        "order": old.get("order") or max([v.get("order", 0) for v in ms.values()] + [0]) + 1,
+        "captures": caps,
+        "settings": settings,
+        "limit": bool(spec.get("limit")),
+        "apps": [{k: a.get(k, "") for k in ("class", "id", "exe", "command", "name")} for a in spec.get("apps") or []],
+        "tools": {t: bool((spec.get("tools") or {}).get(t, TOOL_DEFAULTS[t])) for t in TOOLS},
+        "duration": int(spec.get("duration") or 0),
+        "days": sorted({int(d) for d in spec.get("days") or [] if 0 <= int(d) <= 6}),
+        "time": spec.get("time", ""),
+        "lockout": bool(spec.get("lockout")) and bool(spec.get("duration")),
+    }
+    look = {p: (old.get("look") or {}).get(p) if was.get(p) and (old.get("look") or {}).get(p) else capture_look([p])[p]
+            for p in LOOK_PARTS if caps[p]}
+    if look:
+        m["look"] = look
+    if caps["wallpaper"]:
+        m["wallpaper"] = old.get("wallpaper") if was.get("wallpaper") and old.get("wallpaper") else current_wallpaper()
+    if caps["windows"]:
+        m["windows"] = old.get("windows") if was.get("windows") and old.get("windows") else capture_windows()
+    if caps["monitors"]:
+        m["monitors"] = old.get("monitors") if was.get("monitors") and old.get("monitors") else capture_monitors()
+    tid = tid or slug(name)
+    write_json(TIDE / "modes" / tid / "mode.json", m)
+    print(json.dumps({"id": tid, "order": m["order"]}))
+    return 0
+
+
+def delete(tid):
+    if tid in BUILTIN:
+        print(f"tide-mode: {tid} can't be deleted", file=sys.stderr)
+        return 1
+    ms = modes()
+    if tid not in ms or ms[tid].get("base") != "dev":
+        print(f"tide-mode: no saved theme called {tid!r}", file=sys.stderr)
+        return 1
+    s = session()
+    if s.get("theme") == tid and locked():
+        print(f"tide-mode: {tid} is locked in until time is up", file=sys.stderr)
+        return 2
+    if active() == tid:
+        r = switch("dev", False, force=True)
+        if r:
+            return r
+    f = Path(ms[tid]["file"])
+    f.unlink()
+    try:
+        f.parent.rmdir()
+    except OSError:
+        pass
+    print(f"deleted {tid}")
+    return 0
+
+
+def main(argv):
+    clear_if_rebooted()
+    args = [a for a in argv if not a.startswith("--")]
+    flags = {a for a in argv if a.startswith("--")}
+    if not args:
+        print(active())
+        return 0
+    if args[0] == "list":
+        ms, cur = modes(), active()
+        if "--all" not in flags:
+            ms = {k: v for k, v in ms.items() if not v.get("hidden") or k == cur}
+        if "--json" in flags:
+            print(json.dumps([{"id": k, "name": v.get("name", k), "description": v.get("description", ""),
+                               "art": v.get("art", []), "active": k == cur, "custom": v.get("base") == "dev",
+                               "duration": v.get("duration", 0), "days": v.get("days", []), "time": v.get("time", ""),
+                               "limit": v.get("limit", False), "lockout": v.get("lockout", False),
+                               "apps": [a.get("name") or a.get("class") for a in v.get("apps") or []]} for k, v in ms.items()]))
+        else:
+            for k, v in ms.items():
+                print(("* " if k == cur else "  ") + f"{k:12} {v.get('name', k)} · {v.get('description', '')}")
+        return 0
+    if args[0] in ("-h", "help") or "--help" in flags:
+        print(__doc__.strip())
+        return 0
+    if args[0] == "session":
+        print(json.dumps(session()))
+        return 0
+    if args[0] == "save":
+        return save(json.loads(sys.stdin.read() or "{}"))
+    if args[0] == "get" and len(args) > 1:
+        m = modes().get(args[1])
+        if not m:
+            return 1
+        print(json.dumps({k: v for k, v in m.items() if k != "file"}))
+        return 0
+    if args[0] == "delete" and len(args) > 1:
+        return delete(args[1])
+    if args[0] == "end":
+        s = session()
+        if not s:
+            return 0
+        if locked() and "--emergency" not in flags and "--timeup" not in flags:
+            print("tide-mode: locked in until time is up", file=sys.stderr)
+            return 2
+        return switch(s.get("previous") or "dev", "--dry-run" in flags, force=True, new_session=False)
+    if args[0] == "nth" and len(args) > 1:
+        ms = [k for k, v in modes().items() if not v.get("hidden")]
+        i = int(args[1]) - 1
+        return switch(ms[i], "--dry-run" in flags, confirmed="--confirmed" in flags or "--scheduled" in flags) if 0 <= i < len(ms) else 1
+    return switch(args[0], "--dry-run" in flags, confirmed="--confirmed" in flags or "--scheduled" in flags)
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))

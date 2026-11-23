@@ -1,0 +1,15 @@
+#!/usr/bin/env bash
+# Opens a default app chosen in Tide's Settings → Apps and Hyprland.
+#   tide-open terminal|files|audio [args...]
+# The choice is in ~/.config/Tide/modes/dev/theme.json ("terminal", "fileManager",
+# "audioApp"); keys like Super+Enter call this, so a change needs no Hyprland reload.
+kind=$1; shift
+conf="$HOME/.config/Tide/modes/dev/theme.json"
+get() { python3 -I -c 'import json,sys; print(json.load(open(sys.argv[1])).get(sys.argv[2], ""))' "$conf" "$1" 2>/dev/null; }
+case "$kind" in
+    terminal) app=$(get terminal); app=${app:-alacritty} ;;
+    files)    app=$(get fileManager); app=${app:-nemo} ;;
+    audio)    app=$(get audioApp); app=${app:-pavucontrol} ;;
+    *) echo "usage: tide-open terminal|files|audio" >&2; exit 1 ;;
+esac
+exec uwsm-app -- "$app" "$@"

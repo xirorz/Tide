@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+# Builds Tide's Steam helper (vendor/ugos-steam) and installs it as bin/tide-steam.
+# Needs a Rust toolchain (rustup or the distro's cargo). Runs at the lowest priority
+# so a running game or local AI isn't slowed down.
+set -euo pipefail
+tide="$(cd "$(dirname "$0")/.." && pwd)"
+cd "$tide/vendor/ugos-steam"
+nice -n 19 cargo build --release --locked 2>&1 | tail -n 20
+install -m 755 target/release/tide-steam "$tide/bin/tide-steam"
+echo "installed $tide/bin/tide-steam"
