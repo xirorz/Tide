@@ -8,6 +8,13 @@
 -- extra keys: transform, vrr, bitdepth (numbers), cm (color preset), sdrbrightness, sdrsaturation
 -- Tide's own folder, from $HOME (no user name in the config)
 local TIDE = os.getenv("HOME") .. "/.config/Tide"
+-- this PC's own extras (its hardware, apps, games, startup): hypr/local.lua, kept out of
+-- the repo; it returns { start = function() ... end } for the login-only part
+local LOCAL = nil
+do
+    local f = io.open(TIDE .. "/hypr/local.lua", "r")
+    if f then f:close(); LOCAL = dofile(TIDE .. "/hypr/local.lua") end
+end
 local monitorKeys = { transform = true, vrr = true, bitdepth = true, cm = "string", sdrbrightness = true, sdrsaturation = true }
 for line in io.lines(os.getenv("HOME") .. "/.config/hypr/monitors.conf") do
     local output, mode, position, scale, rest = line:match("^%s*monitor%s*=%s*([^,]*),%s*([^,]+),%s*([^,]+),%s*([%d%.]+)%s*(.-)%s*$")
@@ -22,10 +29,6 @@ for line in io.lines(os.getenv("HOME") .. "/.config/hypr/monitors.conf") do
 end
 hl.config({ ["render.cm_auto_hdr"] = 1 })
 hl.config({ ["quirks.prefer_hdr"] = 2 })
-hl.env("XCURSOR_SIZE", "30")
-hl.env("HYPRCURSOR_SIZE", "30")
-hl.env("QT_QPA_PLATFORMTHEME", "qt6ct")
-hl.env("AQ_DRM_DEVICES", "/dev/dri/card1")
 hl.config({ ["general.resize_on_border"] = false })
 hl.config({ ["general.allow_tearing"] = false })
 hl.config({ ["decoration.rounding_power"] = 2 })
@@ -65,9 +68,7 @@ hl.config({ ["input.kb_rules"] = "" })
 hl.config({ ["input.follow_mouse"] = 1 })
 hl.config({ ["input.sensitivity"] = 0 })
 hl.config({ ["input.touchpad.natural_scroll"] = false })
-hl.config({ ["input.tablet.output"] = "HDMI-A-1" })
 hl.gesture({ fingers = 3, direction = "horizontal", action = "workspace" })
-hl.device({ ["name"] = "epic-mouse-v1", ["sensitivity"] = -0.5 })
 hl.bind("SUPER + RETURN", hl.dsp.exec_cmd("~/.config/Tide/bin/tide-open terminal"))  -- default terminal (Settings → Apps)
 hl.bind("SUPER + E", hl.dsp.exec_cmd("~/.config/Tide/bin/tide-open files"))  -- default file manager (Settings → Apps)
 -- Tide: shell keys (global shortcuts the shell registers as tide:*)
@@ -155,27 +156,12 @@ hl.bind("XF86AudioPlay", hl.dsp.exec_cmd("playerctl play-pause"), { locked = tru
 hl.bind("XF86AudioPrev", hl.dsp.exec_cmd("playerctl previous"), { locked = true })
 hl.window_rule({ ["name"] = "suppress-maximize-events", ["suppress_event"] = "maximize", match = { ["class"] = ".*" } })
 hl.window_rule({ ["name"] = "copilot-attach-file", ["float"] = true, ["center"] = true, match = { ["class"] = "xdg-desktop-portal-gtk" } })
-hl.window_rule({ ["name"] = "ai_localui", ["float"] = true, ["size"] = "700 900", ["move"] = "20 50", ["no_blur"] = true, ["pin"] = true, match = { ["class"] = "ai-copilot-panel" } })
 hl.window_rule({ ["name"] = "fix-xwayland-drags", ["no_focus"] = true, match = { ["class"] = "^$", ["title"] = "^$", ["xwayland"] = true, ["float"] = true, ["fullscreen"] = false, ["pin"] = false } })
-hl.window_rule({ ["name"] = "exiled-exchange-2", ["no_blur"] = true, ["no_shadow"] = true, ["float"] = true, ["border_size"] = 0, match = { ["class"] = "(?i).*exiled-exchange.*" } })
 hl.window_rule({ ["name"] = "move-hyprland-run", ["move"] = "19 monitor_h-120", ["float"] = true, match = { ["class"] = "hyprland-run" } })
-hl.window_rule({ ["name"] = "whisper-paste", ["float"] = true, ["no_shadow"] = true, ["rounding"] = 30, ["no_blur"] = true, ["no_focus"] = true, ["decorate"] = false, ["border_size"] = 0, match = { ["class"] = "whisper-paste-ui.py" } })
-hl.window_rule({ ["name"] = "aegis-automation-workspace", ["float"] = true, ["size"] = "50% 100%", ["move"] = "0 0", match = { ["workspace"] = "10", ["class"] = ".*" } })
-hl.window_rule({ ["name"] = "witcher-1-main-monitor", ["monitor"] = "DP-1", ["content"] = "game", match = { ["class"] = "^steam_app_20900$" } })
-hl.window_rule({ ["name"] = "eve-voice", ["float"] = true, ["pin"] = true, ["move"] = "monitor_w-260 monitor_h-320", ["border_size"] = 0, ["no_shadow"] = true, ["no_blur"] = true, match = { ["class"] = "eve-voice" } })
-hl.window_rule({ ["name"] = "eve-terminal", ["float"] = true, ["size"] = "960 560", ["move"] = "40 80", ["no_initial_focus"] = true, match = { ["class"] = "eve-terminal" } })
-hl.window_rule({ ["name"] = "eve-browser", ["float"] = true, ["size"] = "1280 860", ["move"] = "1020 80", ["no_initial_focus"] = true, match = { ["class"] = "eve-browser" } })
-hl.window_rule({ ["name"] = "eve-browser-desk", ["float"] = true, ["size"] = "1366 768", ["workspace"] = "special:eve-browser silent", ["no_initial_focus"] = true, match = { ["class"] = "eve-browser-desk" } })
-hl.window_rule({ ["name"] = "eve-scratch", ["float"] = true, ["size"] = "1000 1100", ["move"] = "2320 80", ["no_initial_focus"] = true, match = { ["class"] = "eve-scratch" } })
 -- Tide: the Eve panel's window rule lives in modes/dev/hypr.lua (it follows the
 -- interface size)
 -- Tide: the updates panel runs pacman in this floating terminal
 hl.window_rule({ ["name"] = "tide-updates", ["float"] = true, ["size"] = "1120 720", ["center"] = true, ["rounding"] = 18, ["no_blur"] = true, match = { ["class"] = "tide-updates" } })
-hl.bind("SUPER + SHIFT + I", hl.dsp.exec_cmd("~/.config/Tide/bin/switch-monitor-input.sh"))
-hl.bind("SUPER + ALT + F9", hl.dsp.exec_cmd("~/.config/Tide/bin/switch-monitor-input.sh 0x05"))
-hl.bind("SUPER + ALT + F10", hl.dsp.exec_cmd("~/.config/Tide/bin/switch-monitor-input.sh 0x06"))
-hl.bind("SUPER + ALT + F11", hl.dsp.exec_cmd("~/.config/Tide/bin/switch-monitor-input.sh 0x08"))
-hl.bind("SUPER + ALT + F12", hl.dsp.exec_cmd("~/.config/Tide/bin/switch-monitor-input.sh 0x07"))
 hl.config({ ["general.layout"] = "dwindle" })
 hl.config({ ["cursor.no_warps"] = false })
 hl.config({ ["decoration.blur.new_optimizations"] = true })
@@ -191,30 +177,22 @@ hl.animation({ leaf = "windows", enabled = true, speed = 2.5, bezier = "myBezier
 hl.animation({ leaf = "border", enabled = true, speed = 2.5, bezier = "myBezier" })
 hl.animation({ leaf = "fade", enabled = true, speed = 2.5, bezier = "myBezier" })
 hl.animation({ leaf = "workspaces", enabled = true, speed = 2.5, bezier = "myBezier", style = "slidefade 20%" })
-hl.window_rule({ ["name"] = "awakened-poe-trade", ["no_blur"] = true, ["no_shadow"] = true, ["float"] = true, match = { ["class"] = "awakened-poe-trade" } })
-hl.bind("SUPER + ALT + R", hl.dsp.exec_cmd("/mnt/ai_nvme/eve/screen-reader/toggle.sh"), { release = true })
-hl.bind("SUPER + ALT + G", hl.dsp.exec_cmd("python3 /mnt/ai_nvme/manba/padkeys_settings.py"))
-hl.window_rule({ ["name"] = "witcher-2-main-monitor", ["monitor"] = "DP-1", ["fullscreen_state"] = "2 0", ["suppress_event"] = "fullscreenoutput", ["content"] = "game", match = { ["class"] = "^steam_app_20920$", ["title"] = "^The Witcher 2$" } })
 
 -- Login-only applications; reloads do not restart existing services.
 hl.on("hyprland.start", function()
     -- idle and lock: hypridle's own user unit (restarts on failure; Tide's Idle service
     -- starts it again if it's ever missing, e.g. after a Hyprland crash)
     hl.exec_cmd("systemctl --user start hypridle.service")
-    hl.exec_cmd("rslsync")
     hl.exec_cmd("systemctl --user start hyprpolkitagent.service")
-    hl.exec_cmd("udiskie --tray")
-    hl.exec_cmd("python3 /mnt/ai_nvme/tv-launcher/tray/shield_tray.py")
     hl.exec_cmd("pgrep -f '^(/usr/bin/)?qs -p " .. TIDE .. "/modes/dev/shell$' >/dev/null || uwsm-app -- qs -p " .. TIDE .. "/modes/dev/shell")
     -- wallpaper daemon (awww), kept for every mode. It needs this session's display: hand it
     -- to systemd first (after a log out the old one is gone), and start clean (a failed
     -- try from before would stop systemd from starting it)
-    hl.exec_cmd("systemctl --user import-environment WAYLAND_DISPLAY HYPRLAND_INSTANCE_SIGNATURE XDG_CURRENT_DESKTOP; systemctl --user reset-failed ax-shell-awww.service; systemctl --user restart ax-shell-awww.service")
+    hl.exec_cmd("systemctl --user import-environment WAYLAND_DISPLAY HYPRLAND_INSTANCE_SIGNATURE XDG_CURRENT_DESKTOP; systemctl --user reset-failed tide-awww.service; systemctl --user restart tide-awww.service")
     -- clipboard history: cliphist, plus which app and when (Tide's clip-store.sh)
     hl.exec_cmd("wl-paste --type text --watch " .. TIDE .. "/modes/dev/shell/scripts/clip-store.sh")
     hl.exec_cmd("wl-paste --type image --watch " .. TIDE .. "/modes/dev/shell/scripts/clip-store.sh")
-    hl.exec_cmd("xrandr --output DP-1 --primary")
-    hl.exec_cmd("systemctl --user restart openrgb-server.service")
+    if LOCAL and LOCAL.start then LOCAL.start() end
 end)
 
 -- Dev mode look: gaps, borders, rounding, blur and the tide-shell layer rule

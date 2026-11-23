@@ -1,0 +1,9 @@
+[Unit]
+Description=Tide wallpaper daemon (awww)
+PartOf=graphical-session.target
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/awww-daemon
+Restart=always
+RestartSec=1

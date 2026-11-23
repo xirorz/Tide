@@ -6,24 +6,26 @@ an update center and a login screen manager. Lightweight, and every feature can 
 turned off. The shell itself is in `modes/dev/shell`; its full notes are in
 `modes/dev/README.md`.
 
-## Install (early: tested on one Arch/CachyOS PC)
+## Install
 
-1. Clone into `~/.config/Tide`.
-2. Point Hyprland at it: copy `install/hyprland-loader.lua` to `~/.config/hypr/hyprland.lua`
-   (back up yours first). The loader picks the active mode's config; Dev's is
-   `hypr/hyprland.lua`, which loads the look from `modes/dev/hypr.lua`.
-   It reads monitors from `~/.config/hypr/monitors.conf` (Settings → Monitors writes it).
-3. Needs: Hyprland 0.57+ (Lua config), Quickshell 0.3+, matugen, awww, mpvpaper,
-   PipeWire (`pw-play`, `pactl`), Python 3, `notify-send`, zenity, kitty (update window).
-   Optional: yay or paru (AUR updates), Flatpak, Steam, Lutris, OpenRGB, SDDM with
-   SilentSDDM (login screen), a Rust toolchain for the Steam helper
-   (`bin/build-tide-steam`), a local AI server for the AI panel (`modes/dev/EVE_WIRING.md`).
-4. Log in to Hyprland. Per-user settings (`modes/dev/theme.json`, `mode`, notification
-   rules, emulators, AI backends) are made on first use and are not part of the repo.
+On an Arch-based system (Arch, CachyOS, EndeavourOS…):
 
-A first-run setup that detects each system and installs what's missing is planned
-(see "Before release" in `modes/dev/README.md`). Until then `hypr/hyprland.lua` still
-carries one PC's apps and keys.
+```sh
+git clone https://github.com/xirorz/Tide.git
+cd Tide
+./install.sh
+```
+
+That's all. The installer checks the PC, installs whatever is missing (from the
+official repos and the AUR, with yay or paru; it installs yay if there's neither) and
+sets Tide up: Hyprland's config, the lock and idle screens, the wallpaper daemon,
+fonts, colours, and SilentSDDM as the login screen. Files it replaces are kept next to
+them as `<file>.before-tide`. It's safe to run again; `./install.sh --dry-run` only
+shows what it would do. Then log out (or restart), pick Hyprland and log in.
+
+Tide lives in `~/.config/Tide` (the installer links it there if you cloned it
+elsewhere). Your own settings are made on first use and stay out of the repo; extras
+only your PC needs (its hardware, apps, startup programs) go in `hypr/local.lua`.
 
 ## Credits
 

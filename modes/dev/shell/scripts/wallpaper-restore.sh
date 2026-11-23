@@ -17,10 +17,10 @@ for mon, v in json.load(sys.stdin).items():
 }
 # awww itself (images; it brings back each screen's own): started again if it isn't
 # running, e.g. it was started before this session's display was known
-if ! pgrep -x awww-daemon >/dev/null && systemctl --user cat ax-shell-awww.service >/dev/null 2>&1; then
+if ! pgrep -x awww-daemon >/dev/null && systemctl --user cat tide-awww.service >/dev/null 2>&1; then
     systemctl --user import-environment WAYLAND_DISPLAY HYPRLAND_INSTANCE_SIGNATURE
-    systemctl --user reset-failed ax-shell-awww.service
-    systemctl --user restart ax-shell-awww.service
+    systemctl --user reset-failed tide-awww.service
+    systemctl --user restart tide-awww.service
 fi
 mons=$(hyprctl monitors -j | python3 -I -c 'import json,sys; print(" ".join(m["name"] for m in json.load(sys.stdin)))')
 for m in $mons; do
