@@ -1,0 +1,23 @@
+#!/usr/bin/env bash
+# Drop-in for whisper.cpp's whisper-cli as the dictation scripts call it:
+#   whisper-server-cli -m <model> -f <audio.wav> -otxt -of <base>
+# Sends the audio to the whisper-server that is always running (GPU, small model,
+# 127.0.0.1:8179) and writes <base>.txt. If the server doesn't answer, runs the
+# real whisper-cli with the same arguments, so dictation never breaks.
+server="${WHISPER_SERVER:-http://127.0.0.1:8179}"
+cli="$HOME/src/whisper.cpp/build/bin/whisper-cli"
+audio="" base=""
+args=("$@")
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        -f) audio="$2"; shift 2 ;;
+        -of) base="$2"; shift 2 ;;
+        *) shift ;;
+    esac
+done
+if [[ -n "$audio" && -n "$base" ]] &&
+   text=$(curl -sf -m 120 "$server/inference" -F "file=@$audio" -F response_format=text -F temperature=0); then
+    printf "%s\n" "$text" > "$base.txt"
+    exit 0
+fi
+exec "$cli" "${args[@]}"

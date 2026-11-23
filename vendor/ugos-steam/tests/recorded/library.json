@@ -1,0 +1,97 @@
+{
+ "account": "playerone",
+ "folders": [],
+ "games": [
+  {
+   "appid": 108710,
+   "cover": "https://shared.steamstatic.com/store_item_assets/steam/apps/108710/library_600x900.jpg?t=1769717707",
+   "icon": "https://shared.steamstatic.com/community_assets/images/apps/108710/ec7953511aaaf5a2c2093b872b5b43c6cab56462.jpg",
+   "in_games": true,
+   "installed": false,
+   "installed_elsewhere": [],
+   "last_played": 0,
+   "minutes_played": 0,
+   "name": "Alan Wake",
+   "size_on_disk": 0,
+   "type": 1
+  },
+  {
+   "appid": 202750,
+   "cover": "https://shared.steamstatic.com/store_item_assets/steam/apps/202750/library_600x900.jpg?t=1769717420",
+   "icon": "https://shared.steamstatic.com/community_assets/images/apps/202750/313aabf37ed0b521ad969d3fe21768d31300f1ca.jpg",
+   "in_games": true,
+   "installed": false,
+   "installed_elsewhere": [],
+   "last_played": 1420859621,
+   "minutes_played": 24,
+   "name": "Alan Wake's American Nightmare",
+   "size_on_disk": 0,
+   "type": 1
+  },
+  {
+   "appid": 1086940,
+   "cover": "https://shared.steamstatic.com/store_item_assets/steam/apps/1086940/library_600x900.jpg?t=1777363017",
+   "icon": "https://shared.steamstatic.com/community_assets/images/apps/1086940/d866cae7ea1e471fdbc206287111f1b642373bd9.jpg",
+   "in_games": true,
+   "installed": false,
+   "installed_elsewhere": [],
+   "last_played": 1761094351,
+   "minutes_played": 27004,
+   "name": "Baldur's Gate 3",
+   "size_on_disk": 0,
+   "type": 1
+  },
+  {
+   "appid": 365670,
+   "cover": "https://shared.steamstatic.com/store_item_assets/steam/apps/365670/e1aa69f72c34256032b974c9bcd8ce0536dbb5d9/library_capsule.jpg?t=1794315599",
+   "icon": "https://shared.steamstatic.com/community_assets/images/apps/365670/48733cd333eea6e40711a1b9c6dde32ffe363ced.jpg",
+   "in_games": false,
+   "installed": true,
+   "installed_elsewhere": [],
+   "last_played": 1792271791,
+   "minutes_played": 25312,
+   "name": "Blender",
+   "size_on_disk": 1237625701,
+   "type": 2
+  },
+  {
+   "appid": 238960,
+   "cover": "https://shared.steamstatic.com/store_item_assets/steam/apps/238960/a68e104787836a503364268763f2c5b40174a78a/library_capsule.jpg?t=1794180437",
+   "icon": "https://shared.steamstatic.com/community_assets/images/apps/238960/1110764aac57ac28d7ffd8c43071c75d5482a9c9.jpg",
+   "in_games": true,
+   "installed": true,
+   "installed_elsewhere": [],
+   "last_played": 1791152617,
+   "minutes_played": 67408,
+   "name": "Path of Exile",
+   "size_on_disk": 71627951692,
+   "type": 1
+  },
+  {
+   "appid": 1509960,
+   "cover": "https://shared.steamstatic.com/store_item_assets/steam/apps/1509960/library_600x900.jpg?t=1618484639",
+   "icon": "https://shared.steamstatic.com/community_assets/images/apps/1509960/738c7b1a12275d8b792f9a01a6c174453cd9770e.jpg",
+   "in_games": true,
+   "installed": false,
+   "installed_elsewhere": [],
+   "last_played": 1794348279,
+   "minutes_played": 277,
+   "name": "PICO PARK",
+   "size_on_disk": 0,
+   "type": 1
+  },
+  {
+   "appid": 1493710,
+   "cover": "https://shared.steamstatic.com/store_item_assets/steam/apps/1493710/library_600x900.jpg?t=1709153861",
+   "icon": "https://shared.steamstatic.com/community_assets/images/apps/1493710/bd2b709a08caf7286f73c51d3b3937667f7aa053.jpg",
+   "in_games": false,
+   "installed": true,
+   "installed_elsewhere": [],
+   "last_played": 0,
+   "minutes_played": 0,
+   "name": "Proton Experimental",
+   "size_on_disk": 1539520708,
+   "type": 4
+  }
+ ]
+}

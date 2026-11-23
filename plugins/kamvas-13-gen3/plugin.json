@@ -1,0 +1,9 @@
+{
+  "name": "Kamvas 13 Gen 3",
+  "description": "Huion Kamvas 13 (Gen 3): express keys, dials and pen buttons per app",
+  "match": { "usb": ["256c:2008"], "screen": "kamvas" },
+  "page": "TabletPage.qml",
+  "daemon": ["python3", "-I", "engine/main.py", "--daemon"],
+  "app": ["python3", "-I", "engine/main.py"],
+  "appMatch": "kamvas-13-gen3/engine/main\\.py$"
+}
