@@ -103,8 +103,22 @@ Item {
         }
         Divider { visible: root.devices.length > 0 }
 
-        // the laptop's own battery (nothing on a desktop)
+        // the laptop's own battery (nothing on a desktop), and its power mode at a glance:
+        // a leaf for Power saver, scales for Balanced, a bolt for Performance
         LaptopBattery {}
+        Icon {
+            visible: Power.hasBattery && Power.hasProfiles
+            path: Power.profile === "saver" ? "M5 19 C5 10 11 5 19 5 C19 13 14 19 5 19 Z M5 19 L13 11"
+                : Power.profile === "performance" ? "M13 3 L5 14 H11 L10 21 L19 9 H13 Z"
+                : "M12 4 V20 M8 20 H16 M5 8 H19 M5 8 L2.5 13.5 A2.6 2.6 0 0 0 7.5 13.5 Z M19 8 L16.5 13.5 A2.6 2.6 0 0 0 21.5 13.5 Z"
+            color: Power.profile === "performance" ? Theme.accent : Theme.text2
+        }
+        // the microphone is muted (the laptop's mic key, or muted anywhere): shown while it is
+        Icon {
+            visible: Audio.inMuted
+            path: Icons.micOff
+            color: Theme.red
+        }
 
         Icon {
             path: Icons.volume
