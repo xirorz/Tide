@@ -57,7 +57,7 @@ O=("firefox|Firefox|firefox" "chromium|Chromium|chromium" "brave|Brave|brave-bin
 ask "Web browser" "${O[@]}"; BROWSER=$ANSWER; EXTRA+=($(pkgs_of "$ANSWER" "${O[@]}"))
 O=("nemo|Nemo|nemo" "nautilus|Nautilus (GNOME Files)|nautilus" "thunar|Thunar|thunar" "dolphin|Dolphin|dolphin" "skip|Skip (keep what I have)|")
 ask "File manager (Super+E)" "${O[@]}"; FILES=$ANSWER; EXTRA+=($(pkgs_of "$ANSWER" "${O[@]}"))
-O=("kitty|Kitty (Tide's update window uses it either way)|" "alacritty|Alacritty|alacritty" "foot|Foot|foot" "ghostty|Ghostty|ghostty" "wezterm|WezTerm|wezterm")
+O=("kitty|Kitty|kitty" "alacritty|Alacritty|alacritty" "foot|Foot|foot" "ghostty|Ghostty|ghostty" "wezterm|WezTerm|wezterm")
 ask "Terminal (Super+Enter)" "${O[@]}"; TERMINAL=$ANSWER; EXTRA+=($(pkgs_of "$ANSWER" "${O[@]}"))
 # Bluetooth: only when the PC has it (no question)
 BLUETOOTH=no
@@ -81,13 +81,13 @@ PKGS=(
     # the compositor and the shell
     hyprland quickshell uwsm xdg-desktop-portal-hyprland hyprpolkitagent hyprlock hypridle hyprpicker
     # wallpapers and colours
-    awww-git mpvpaper matugen-bin imagemagick ffmpeg
+    awww mpvpaper matugen-bin ffmpeg
     # sound, media, screens, network
     pipewire pipewire-pulse wireplumber libpulse playerctl brightnessctl networkmanager
     # clipboard, capture, OCR, recording
     wl-clipboard cliphist grim slurp tesseract tesseract-data-eng gpu-screen-recorder
     # Tide's tools
-    python libnotify zenity kitty pacman-contrib curl polkit xdg-utils
+    python libnotify zenity pacman-contrib curl polkit xdg-utils
     # the login screen (SilentSDDM by uiriansan) and the lock screen's font
     sddm sddm-silent-theme ttf-iosevka-nerd
     # the volume app the control center opens

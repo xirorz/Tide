@@ -111,7 +111,7 @@ Singleton {
             property var target
             command: target.video
                 ? ["sh", "-c", "ffprobe -v error -select_streams v:0 -show_entries stream=width,height:format=duration -of csv=p=0:s=x \"$1\"", "ffprobe", target.path]
-                : ["sh", "-c", "magick identify -format '%w %h' \"$1[0]\"", "identify", target.path]
+                : ["sh", "-c", "ffprobe -v error -select_streams v:0 -show_entries stream=width,height -of csv=p=0:s=x \"$1\"", "ffprobe", target.path]
             stdout: StdioCollector {
                 onStreamFinished: {
                     const ext = target.name.split(".").pop().toUpperCase().replace("JPEG", "JPG");
