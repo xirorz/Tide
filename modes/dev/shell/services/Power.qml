@@ -18,6 +18,8 @@ Singleton {
     readonly property real level: dev && dev.ready && dev.isLaptopBattery ? dev.percentage : (preview ? 0.64 : 0)
     readonly property bool charging: !!dev && (dev.state === UPowerDeviceState.Charging || dev.state === UPowerDeviceState.PendingCharge)
     readonly property bool full: !!dev && dev.state === UPowerDeviceState.FullyCharged
+    // running on the battery (a real one): what the "on battery" options react to
+    readonly property bool onBattery: !!dev && dev.ready && dev.isLaptopBattery && dev.state === UPowerDeviceState.Discharging
     function hm(sec) {
         const m = Math.round(sec / 60);
         return m >= 60 ? Math.floor(m / 60) + " h " + (m % 60) + " min" : m + " min";
@@ -62,6 +64,57 @@ Singleton {
     // keys and other apps change it too
     Timer { interval: 5000; repeat: true; running: root.hasBacklight; onTriggered: root.readBrightness() }
 
+    // ---- on battery (Settings → Power): Power saver, and the battery's idle times ----
+    readonly property bool saverOnBattery: Theme.opt("powerSaverOnBattery", true)
+    readonly property bool saverAtWarning: Theme.opt("powerSaverAtWarning", true)
+    readonly property bool batteryIdle: Theme.opt("idleOnBattery", true)
+    readonly property var batteryTimings: Theme.opt("idleBattery", { dim: 2, lock: 5, dpms: 5, suspend: 15 })
+    // what to go back to when the charger comes back (kept across shell restarts)
+    property var saved: ({})
+    property bool savedLoaded: false
+    FileView {
+        id: savedFile
+        path: Quickshell.env("HOME") + "/.local/state/tide/power.json"
+        printErrors: false
+        onLoaded: { try { root.saved = JSON.parse(text()) || {}; } catch (e) { root.saved = {}; } root.savedLoaded = true; root.follow(); }
+        onLoadFailed: { root.savedLoaded = true; root.follow(); }
+    }
+    function save(d) { saved = d; savedFile.setText(JSON.stringify(d, null, 2)); }
+    onOnBatteryChanged: follow()
+    function follow() {
+        if (!savedLoaded || !dev || !dev.ready || !dev.isLaptopBattery) return;
+        const d = Object.assign({}, saved);
+        if (onBattery && !d.battery) {
+            d.battery = true;
+            if (saverOnBattery && hasProfiles && profile !== "saver") { d.profile = profile; setProfile("saver"); }
+            if (batteryIdle) { d.idle = Idle.timings; Idle.setAll(batteryTimings); }
+            save(d);
+        } else if (!onBattery && d.battery) {
+            if (d.profile && profile === "saver") setProfile(d.profile);
+            if (d.idle) Idle.setAll(d.idle);
+            save({});
+        }
+    }
+    // a new battery idle time while on battery: used right away
+    function setBatteryTiming(key, minutes) {
+        const t = Object.assign({}, batteryTimings);
+        t[key] = minutes;
+        Theme.set("idleBattery", t);
+        if (onBattery && saved.battery && batteryIdle) Idle.setAll(t);
+    }
+
+    // ---- charge limit (where the battery has one): bin/tide-power ----
+    property bool chargeLimitSupported: false
+    property int chargeLimit: 100
+    readonly property string powerTool: Quickshell.env("HOME") + "/.config/Tide/bin/tide-power"
+    Process {
+        id: limitProc
+        running: true
+        command: [root.powerTool, "charge-limit"]
+        stdout: StdioCollector { onStreamFinished: { try { const d = JSON.parse(text); if (d.supported !== undefined) { root.chargeLimitSupported = d.supported; root.chargeLimit = d.limit; } } catch (e) {} } }
+    }
+    function setChargeLimit(pct) { limitProc.command = [powerTool, "charge-limit", String(pct)]; limitProc.running = true; }
+
     // ---- low battery: a warning at the level in Settings → Power, and again at 5% ----
     readonly property int warnAt: Theme.opt("batteryWarn", 20)
     property int warned: 101               // the lowest level warned about this discharge
@@ -71,7 +124,9 @@ Singleton {
         if (charging || full) { warned = 101; return; }
         if (warnAt > 0 && pct <= warnAt && warned > warnAt) {
             warned = warnAt;
-            Quickshell.execDetached(["notify-send", "-a", "Tide", "-i", "battery-low", "Battery low", pct + "% left. Plug in soon."]);
+            const saver = saverAtWarning && hasProfiles && profile !== "saver";
+            if (saver) setProfile("saver");
+            Quickshell.execDetached(["notify-send", "-a", "Tide", "-i", "battery-low", "Battery low", pct + "% left. Plug in soon." + (saver ? " Switched to Power saver." : "")]);
         } else if (pct <= 5 && warned > 5) {
             warned = 5;
             Quickshell.execDetached(["notify-send", "-a", "Tide", "-u", "critical", "-i", "battery-caution", "Battery almost empty", pct + "% left. Plug in now."]);
@@ -81,7 +136,7 @@ Singleton {
 
     IpcHandler {
         target: "power"
-        function state(): string { return JSON.stringify({ battery: root.hasBattery, level: Math.round(root.level * 100), status: root.status, profiles: root.hasProfiles, profile: root.profile, backlight: root.hasBacklight, brightness: Math.round(root.brightness * 100) }); }
+        function state(): string { return JSON.stringify({ onBattery: root.onBattery, saved: root.saved, chargeLimit: root.chargeLimitSupported ? root.chargeLimit : null, battery: root.hasBattery, level: Math.round(root.level * 100), status: root.status, profiles: root.hasProfiles, profile: root.profile, backlight: root.hasBacklight, brightness: Math.round(root.brightness * 100) }); }
         function preview(on: bool): void { root.preview = on; }
     }
 }
