@@ -15,10 +15,16 @@ Singleton {
     function opt(key, fallback) {
         return root.cfg[key] !== undefined ? root.cfg[key] : fallback;
     }
+    // a colour by name: pywal's (if it's installed) or matugen's from the wallpaper; pywal's
+    // colorN names map to matugen's colours so either works
+    readonly property var walToRole: ({ color0: "background", color1: "red", color2: "green", color3: "yellow", color4: "blue",
+                                         color5: "magenta", color6: "cyan", color7: "foreground", color8: "outline" })
     function walColor(name, fallback) {
         const c = root.wal.colors;
         if (c && c[name]) return c[name];
-        return root.roles[name] ? root.roles[name] : fallback;
+        if (root.roles[name]) return root.roles[name];
+        const r = walToRole[name];
+        return r && root.roles[r] ? root.roles[r] : fallback;
     }
 
     // surface: "glass", "dark" or "tinted" (never light); the island follows it. Tinted is
@@ -78,7 +84,7 @@ Singleton {
     // "accentFromWallpaper": false keeps the fixed accentFallback (the picker's
     // "Accent across the shell" switch)
     readonly property color accentTarget: opt("accentFromWallpaper", true)
-        ? walColor(opt("walAccent", "color4"), opt("accentFallback", "#F2A23C"))
+        ? walColor(opt("walAccent", "primary"), opt("accentFallback", "#F2A23C"))
         : opt("accentFallback", "#F2A23C")
     // a new palette crossfades every accent at once (500ms, linear)
     property color accent: accentTarget
