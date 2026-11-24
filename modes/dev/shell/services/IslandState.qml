@@ -11,7 +11,7 @@ Singleton {
     property string screenName: ""
 
     // states that are built so far; the rest of the design's states come next
-    readonly property var built: ["idle", "launcher", "notification", "calculator", "clipboard", "capture", "power", "volume", "eve", "wallpapers", "resources", "themes", "confirm"]
+    readonly property var built: ["idle", "launcher", "notification", "calculator", "clipboard", "capture", "power", "volume", "brightness", "eve", "wallpapers", "resources", "themes", "confirm"]
 
     // the control center is open (set by the bar); the island and it never show together
     property bool ccOpen: false
@@ -67,7 +67,7 @@ Singleton {
     // while a tool or the control center is open
     property bool volumeHovered: false
     function showVolume() {
-        if (ccOpen || (mode !== "idle" && mode !== "volume")) return;
+        if (ccOpen || (mode !== "idle" && mode !== "volume" && mode !== "brightness")) return;
         if (mode !== "volume") open("volume", "");
         volumeTimer.restart();
     }
@@ -76,6 +76,20 @@ Singleton {
         interval: 3500
         running: root.mode === "volume" && !root.volumeHovered
         onTriggered: if (root.mode === "volume") root.close()
+    }
+    // the brightness keys: the same pop-up idea, for the screen's brightness
+    function showBrightness() {
+        if (ccOpen || (mode !== "idle" && mode !== "volume" && mode !== "brightness")) return;
+        if (!Power.hasBacklight && !Power.preview) return;      // no laptop screen to dim
+        Power.readBrightness();
+        if (mode !== "brightness") open("brightness", "");
+        brightnessTimer.restart();
+    }
+    Timer {
+        id: brightnessTimer
+        interval: 3500
+        running: root.mode === "brightness" && !root.volumeHovered
+        onTriggered: if (root.mode === "brightness") root.close()
     }
 
     // ---- calculator ----
@@ -93,7 +107,7 @@ Singleton {
     //          her back as she is now
     // highest: tools you open (launcher, calculator, clipboard, capture, power,
     //          wallpapers): always open, over passive things and over Eve
-    readonly property var passiveModes: ["notification", "volume"]
+    readonly property var passiveModes: ["notification", "volume", "brightness"]
     function isTool(m) { return m !== "idle" && m !== "eve" && passiveModes.indexOf(m) < 0; }
     // what the island rests on when nothing is open on top
     readonly property string restMode: Eve.active ? "eve" : "idle"
@@ -131,6 +145,7 @@ Singleton {
         function state(): string { return root.mode; }
         function calculator(): void { root.toggle("calculator"); }
         function volume(): void { root.showVolume(); }
+        function brightness(): void { root.showBrightness(); }
     }
     IpcHandler {
         target: "settings"

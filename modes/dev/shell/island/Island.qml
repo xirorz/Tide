@@ -31,9 +31,9 @@ Item {
                                   : mode === "eve" && Eve.stage === "working" && Eve.term.length > 0 ? "eveWork" : mode
     readonly property bool isOpen: mode !== "idle"
     // open tools take the keyboard and close on an outside click; the banner doesn't
-    readonly property bool grabs: isOpen && ["notification", "volume", "eve"].indexOf(mode) < 0
+    readonly property bool grabs: isOpen && ["notification", "volume", "brightness", "eve"].indexOf(mode) < 0
     // the rest of the screen dims slightly while a tool is open
-    readonly property bool dims: isOpen && ["notification", "volume", "recording", "eve", "eveWork", "voiceRec", "voiceBusy", "voiceDone", "session", "sessionInfo", "sessionHold"].indexOf(shape) < 0
+    readonly property bool dims: isOpen && ["notification", "volume", "brightness", "recording", "eve", "eveWork", "voiceRec", "voiceBusy", "voiceDone", "session", "sessionInfo", "sessionHold"].indexOf(shape) < 0
     property alias body: body
 
     readonly property var sizes: ({
@@ -45,6 +45,7 @@ Item {
         notification: [500, 92, 32],
         power: [520, 144, 36],
         volume: [380, 48, 24],
+        brightness: [300, 48, 24],
         recording: [132, 38, 19],
         session: [150, 38, 19],
         sessionInfo: [300, 38, 19],
@@ -481,6 +482,15 @@ Item {
                     onCloseRequested: IslandState.close()
                 }
                 onShown: power.reset()
+            }
+
+            // ---- brightness pop-up ----
+            FadeIn {
+                active: isl.shape === "brightness"
+                BrightnessPopup {
+                    width: Theme.s(300)
+                    height: Theme.s(48)
+                }
             }
 
             // ---- volume pop-up ----
