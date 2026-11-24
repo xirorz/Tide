@@ -102,6 +102,12 @@ Singleton {
         writer.running = true;
     }
     Process { id: writer; onExited: root.read() }
+    // all four at once (Power: the battery's times, and back)
+    function setAll(t) {
+        timings = Object.assign({}, t);
+        writer.command = ["python3", "-I", Quickshell.shellDir + "/scripts/hypridle.py", "write", JSON.stringify(timings)];
+        writer.running = true;
+    }
     function start() { starter.running = true; }
     Process { id: starter; command: ["systemctl", "--user", "start", "hypridle.service"]; onExited: again.restart() }
     Timer { id: again; interval: 1500; onTriggered: root.read() }
