@@ -91,6 +91,7 @@ ShellRoot {
         Session.active;
         Games.open;
         Park.parked;
+        Power.hasBattery;
         Recording.active;
         Notifications.unseen;
         Voice.state;

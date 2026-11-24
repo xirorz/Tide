@@ -372,6 +372,54 @@ Item {
             }
         }
 
+        // ===== battery (laptops): level and time, power mode, screen brightness =====
+        Card {
+            visible: Power.hasBattery
+            padding: Theme.s(12)
+            hPadding: Theme.s(14)
+            spacing: Theme.s(8)
+
+            RowLayout {
+                Layout.fillWidth: true
+                T { text: "Battery"; px: Theme.s(14); weight: Font.DemiBold; Layout.fillWidth: true }
+                T { text: Math.round(Power.level * 100) + "% · " + Power.status; px: Theme.s(12); color: Theme.muted }
+            }
+            // power mode (power-profiles-daemon)
+            Rectangle {
+                visible: Power.hasProfiles
+                Layout.fillWidth: true
+                implicitHeight: Theme.s(36)
+                radius: Theme.s(12)
+                color: Qt.rgba(0, 0, 0, 0.3)
+                Row {
+                    x: Theme.s(3); y: Theme.s(3)
+                    spacing: Theme.s(2)
+                    readonly property real w: (parent.width - Theme.s(6) - Theme.s(4)) / (Power.hasPerformance ? 3 : 2)
+                    Segment { width: parent.w; label: "Power saver"; on: Power.profile === "saver"; onClicked: Power.setProfile("saver") }
+                    Segment { width: parent.w; label: "Balanced"; on: Power.profile === "balanced"; onClicked: Power.setProfile("balanced") }
+                    Segment { visible: Power.hasPerformance; width: parent.w; label: "Performance"; on: Power.profile === "performance"; onClicked: Power.setProfile("performance") }
+                }
+            }
+            // the screen's brightness
+            RowLayout {
+                visible: Power.hasBacklight
+                Layout.fillWidth: true
+                spacing: Theme.s(10)
+                Icon { path: Icons.sun; color: Theme.muted }
+                VolumeSlider {
+                    Layout.fillWidth: true
+                    value: Power.brightness
+                    onMoved: v => Power.setBrightness(v)
+                }
+                T {
+                    Layout.preferredWidth: Theme.s(22)
+                    horizontalAlignment: Text.AlignRight
+                    text: Math.round(Power.brightness * 100)
+                    px: Theme.s(11); mono: true; color: Theme.muted
+                }
+            }
+        }
+
         // ===== lighting: RGB brightness (the color comes from the wallpaper); only on a
         // PC with the OpenRGB sync Tide drives (~/.local/bin/matugen-openrgb-sync) =====
         Card {

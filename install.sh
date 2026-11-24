@@ -62,6 +62,17 @@ ask "Terminal (Super+Enter)" "${O[@]}"; TERMINAL=$ANSWER; EXTRA+=($(pkgs_of "$AN
 # Bluetooth: only when the PC has it (no question)
 BLUETOOTH=no
 if [ -n "$(ls /sys/class/bluetooth 2>/dev/null)" ]; then BLUETOOTH=yes; EXTRA+=(bluez bluez-utils); say "Bluetooth: this PC has it, so it's set up"; fi
+# a laptop: power modes (Power saver / Balanced / Performance), unless TLP or tuned
+# already manage power (they'd fight)
+LAPTOP=no
+if ls /sys/class/power_supply/BAT* >/dev/null 2>&1; then
+    LAPTOP=yes
+    if pacman -Q tlp >/dev/null 2>&1 || pacman -Q tuned >/dev/null 2>&1 || pacman -Q tuned-ppd >/dev/null 2>&1; then
+        say "Laptop: battery found (TLP or tuned manages power, so Tide leaves it to them)"
+    else
+        EXTRA+=(power-profiles-daemon); say "Laptop: battery found, power modes set up"
+    fi
+fi
 
 # ---- where Tide lives: ~/.config/Tide ----
 step "Placing Tide in ~/.config/Tide"
@@ -242,6 +253,7 @@ case $BROWSER in
 esac
 if [ -n "$desk" ]; then run xdg-settings set default-web-browser "$desk" || true; say "default browser: $BROWSER"; fi
 if [ "$BLUETOOTH" = yes ]; then run sudo systemctl enable bluetooth.service; say "Bluetooth: on (from the next start)"; fi
+if [ "$LAPTOP" = yes ] && [[ " ${EXTRA[*]} " == *" power-profiles-daemon "* ]]; then run sudo systemctl enable --now power-profiles-daemon.service; say "power modes: on"; fi
 # Tide's network controls use NetworkManager: turned on for the next start if it isn't
 # running (nothing is stopped now, so the install keeps its connection)
 if ! systemctl -q is-active NetworkManager.service 2>/dev/null; then
