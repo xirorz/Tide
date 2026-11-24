@@ -26,7 +26,8 @@ bin/switch-monitor-input.sh
 bin/monitor-input.css
 
 # ---- builds ----
-bin/tide-steam
+# bin/tide-steam ships prebuilt (no Rust needed to install); rebuild it with
+# bin/build-tide-steam after changing vendor/ugos-steam
 vendor/ugos-steam/target/
 
 # ---- backups, caches, logs ----

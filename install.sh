@@ -57,8 +57,14 @@ O=("firefox|Firefox|firefox" "chromium|Chromium|chromium" "brave|Brave|brave-bin
 ask "Web browser" "${O[@]}"; BROWSER=$ANSWER; EXTRA+=($(pkgs_of "$ANSWER" "${O[@]}"))
 O=("nemo|Nemo|nemo" "nautilus|Nautilus (GNOME Files)|nautilus" "thunar|Thunar|thunar" "dolphin|Dolphin|dolphin" "skip|Skip (keep what I have)|")
 ask "File manager (Super+E)" "${O[@]}"; FILES=$ANSWER; EXTRA+=($(pkgs_of "$ANSWER" "${O[@]}"))
+# Tide needs a terminal (Super+Enter, the update window): with one of these already
+# here, Skip keeps it; with none, one has to be picked (--yes takes the first)
 O=("kitty|Kitty|kitty" "alacritty|Alacritty|alacritty" "foot|Foot|foot" "ghostty|Ghostty|ghostty" "wezterm|WezTerm|wezterm")
+HAVE_TERM=""
+for t in kitty alacritty foot ghostty wezterm; do if command -v "$t" >/dev/null; then HAVE_TERM=$t; break; fi; done
+if [ -n "$HAVE_TERM" ]; then O+=("skip|Skip (keep $HAVE_TERM)|"); fi
 ask "Terminal (Super+Enter)" "${O[@]}"; TERMINAL=$ANSWER; EXTRA+=($(pkgs_of "$ANSWER" "${O[@]}"))
+if [ "$TERMINAL" = skip ]; then TERMINAL=$HAVE_TERM; fi
 # Bluetooth: only when the PC has it (no question)
 BLUETOOTH=no
 if [ -n "$(ls /sys/class/bluetooth 2>/dev/null)" ]; then BLUETOOTH=yes; EXTRA+=(bluez bluez-utils); say "Bluetooth: this PC has it, so it's set up"; fi
@@ -125,10 +131,24 @@ else
             say "would build $HELPER-bin from the AUR"
         fi
     fi
-    case $HELPER in
-        yay) run yay -S --needed --noconfirm --answerdiff None --answerclean None --removemake "${MISSING[@]}" ;;
-        paru) run paru -S --needed --noconfirm --skipreview "${MISSING[@]}" ;;
-    esac
+    # the ones from the AUR are built from scripts anyone can edit: name them, and
+    # (asked at a terminal) let the helper show each build script first, as the update
+    # window does. --yes can't ask, so it says what it builds unreviewed.
+    AUR=()
+    for p in "${MISSING[@]}"; do pacman -Si "$p" >/dev/null 2>&1 || AUR+=("$p"); done
+    [ ${#AUR[@]} -gt 0 ] && say "from the AUR: ${AUR[*]}"
+    if [ $YES = 1 ]; then
+        [ ${#AUR[@]} -gt 0 ] && say "${Y}--yes: built without showing their build scripts${R} (run without --yes to read them first)"
+        case $HELPER in
+            yay) run yay -S --needed --noconfirm --answerdiff None --answerclean None --removemake "${MISSING[@]}" ;;
+            paru) run paru -S --needed --noconfirm --skipreview "${MISSING[@]}" ;;
+        esac
+    else
+        case $HELPER in
+            yay) run yay -S --needed --diffmenu --answerdiff All --answerclean None --removemake "${MISSING[@]}" ;;
+            paru) run paru -S --needed --review "${MISSING[@]}" ;;
+        esac
+    fi
 fi
 
 # ---- Hyprland: the loader points at Tide ----
@@ -202,7 +222,15 @@ def put(path, sec, key, val, only_if_set=False):
     elif end is not None: lines.insert(end, f"{key}={val}")
     else: lines += [f"[{sec}]", f"{key}={val}"]
     os.makedirs(os.path.dirname(path), exist_ok=True)
-    open(path, "w").write("\n".join(lines) + "\n")
+    # whole or not at all: a cut-off write would leave the login screen without its config
+    tmp = path + ".tide-tmp"
+    with open(tmp, "w") as fh:
+        fh.write("\n".join(lines) + "\n")
+    if os.path.exists(path):
+        st = os.stat(path)
+        os.chmod(tmp, st.st_mode & 0o7777)
+        os.chown(tmp, st.st_uid, st.st_gid)
+    os.replace(tmp, path)
 put("/var/lib/sddm/state.conf", "Last", "Session", "/usr/share/wayland-sessions/" + session)
 put("/var/lib/sddm/state.conf", "Last", "User", user)
 for f in ["/etc/sddm.conf"] + glob.glob("/etc/sddm.conf.d/*.conf"):
@@ -274,11 +302,10 @@ if ! systemctl -q is-active NetworkManager.service 2>/dev/null; then
     say "network: NetworkManager from the next start"
 fi
 
-# ---- the Steam helper: only with Steam on the PC ----
-if command -v steam >/dev/null && [ ! -x "$HERE/bin/tide-steam" ]; then
-    step "Steam helper (installs games from the launcher)"
-    pacman -T rust >/dev/null 2>&1 || run sudo pacman -S --needed --noconfirm rust
-    run "$HERE/bin/build-tide-steam"
+# ---- the Steam helper: ships prebuilt as bin/tide-steam (no Rust needed) ----
+if [ ! -x "$HERE/bin/tide-steam" ]; then
+    if [ -f "$HERE/bin/tide-steam" ]; then run chmod +x "$HERE/bin/tide-steam"
+    else say "${Y}the Steam helper (bin/tide-steam) is missing:${R} the game launcher can't install games until it's back (bin/build-tide-steam rebuilds it)"; fi
 fi
 
 step "Done"

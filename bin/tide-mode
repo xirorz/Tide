@@ -309,7 +309,8 @@ def desktop_exec(cls):
                 return cmd
             if f.stem.lower() == want or f.stem.lower().split(".")[-1] == want:
                 best = best or cmd
-    return best or cls.lower()
+    # no desktop entry: the class itself, only when it's a command (org.gnome.Foo isn't)
+    return best or (cls.lower() if shutil.which(cls.lower()) else "")
 
 
 def capture_windows():

@@ -49,7 +49,11 @@ def set_limit(pct):
     if not files():
         print(json.dumps({"error": "This battery has no charge limit"}))
         return 1
-    pct = max(50, min(100, int(pct)))
+    try:
+        pct = max(50, min(100, int(pct)))
+    except ValueError:
+        print(json.dumps({"error": "The limit is a percent (50-100)"}))
+        return 1
     if not writable():
         # once: let this user change it from now on (one password prompt)
         r = subprocess.run(["pkexec", os.path.abspath(__file__), "root-setup", str(os.getuid())], capture_output=True, text=True)
@@ -86,7 +90,7 @@ def root_setup(uid):
     uid = int(uid)
     with open(RULE, "w") as fh:
         fh.write("# Tide (Settings → Power): the battery's charge limit can be changed by user %d\n"
-                 'SUBSYSTEM=="power_supply", KERNEL=="BAT*", RUN+="/bin/chown %d /sys%%p/charge_control_end_threshold"\n' % (uid, uid))
+                 'ACTION=="add", SUBSYSTEM=="power_supply", KERNEL=="BAT*", RUN+="/bin/chown %d /sys%%p/charge_control_end_threshold"\n' % (uid, uid))
     for f in files():
         os.chown(f, uid, -1)
     return 0
