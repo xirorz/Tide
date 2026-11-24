@@ -76,7 +76,7 @@ def scaled(lines, f, g, is_input):
                 parts = [num(parts[0], g, 12)]
             elif key == "size":
                 if is_input and len(parts) == 2:
-                    parts = [num(parts[0], g, 200), num(parts[1], g, 40)]
+                    parts = [num(parts[0], g, 160), num(parts[1], g, 30)]
                 else:
                     parts = [num(p, g, 24) if not p.endswith("%") else p for p in parts]
             else:
