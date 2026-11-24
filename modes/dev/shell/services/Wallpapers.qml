@@ -88,7 +88,7 @@ Singleton {
         Process {
             property var target
             // the thumbnail is plenty for colors and fast
-            command: ["sh", "-c", "matugen image \"$1\" --dry-run -j hex", "matugen", target.thumb.replace("file://", "")]
+            command: ["sh", "-c", "\"$0\" image \"$1\" --dry-run -j hex", Quickshell.shellDir + "/scripts/matugen.sh", target.thumb.replace("file://", "")]
             stdout: StdioCollector {
                 onStreamFinished: {
                     try {

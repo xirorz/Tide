@@ -117,9 +117,10 @@ Item {
                 }
             }
 
-            // display: a small dropdown
+            // display: a small dropdown (only with more than one screen; one screen gets it)
             HoverButton {
                 id: monBtn
+                visible: Hyprland.monitors.values.length > 1
                 implicitWidth: monRow.implicitWidth + Theme.s(22)
                 implicitHeight: Theme.s(34)
                 radius: Theme.s(11)

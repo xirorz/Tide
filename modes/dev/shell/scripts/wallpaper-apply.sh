@@ -67,9 +67,10 @@ recent="$HOME/.local/state/tide/wallpapers-recent"
 mkdir -p "$(dirname "$recent")"
 { echo "$file"; grep -vxF "$file" "$recent" 2>/dev/null; } | head -24 > "$recent.tmp" && mv "$recent.tmp" "$recent"
 
-matugen image "$colors_from"
+# through scripts/matugen.sh: matugen 4 would otherwise wait for a colour to be picked
+"$(dirname "$0")/matugen.sh" image "$colors_from"
 # Tide's own colors (~/.config/Tide/colors: colors.css for the shell, hyprlock-colors.conf)
-matugen image -c "$HOME/.config/Tide/colors/matugen.toml" "$colors_from"
+"$(dirname "$0")/matugen.sh" image -c "$HOME/.config/Tide/colors/matugen.toml" "$colors_from"
 
 if [[ "$rgb" == 1 ]]; then
     # the lights take the wallpaper's color, vivid, at "rgbBrightness" (scripts/rgb-apply.sh)
