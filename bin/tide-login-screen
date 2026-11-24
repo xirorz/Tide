@@ -34,6 +34,13 @@ OPTIONS = {
     "LockScreen.Message/position": CLOCK,
     "LockScreen.Clock/align": {"left", "center", "right"},
     "LockScreen.Message/align": {"left", "center", "right"},
+    # the side: the box's margin from the edge (-1 = centred) and the clock screen's padding
+    "LoginScreen.LoginArea/margin": lambda v: re.fullmatch(r"-?\d{1,3}", v) is not None,
+    "LockScreen/padding-left": lambda v: re.fullmatch(r"-?\d{1,3}", v) is not None,
+    "LockScreen/padding-right": lambda v: re.fullmatch(r"-?\d{1,3}", v) is not None,
+    "LockScreen/padding-bottom": lambda v: re.fullmatch(r"-?\d{1,3}", v) is not None,
+    # the whole login screen's size (1.0 = the theme's design, made for 1080p)
+    "General/scale": lambda v: re.fullmatch(r"(0\.[5-9]\d?|1(\.\d\d?)?)", v) is not None,
     "LockScreen.Clock/format": {"hh:mm", "h:mm AP"},
     "LockScreen/blur": lambda v: v.isdigit() and int(v) <= 64,
     "LoginScreen/blur": lambda v: v.isdigit() and int(v) <= 64,
@@ -213,12 +220,35 @@ def put_background(src):
     return "tide/" + name
 
 
+def auto_scale():
+    """The login screen's size for this PC's screen: the theme is made for 1080p, so a
+    smaller screen (a laptop's 900p) gets it smaller; 1080p and up stay at 1.0."""
+    h = 1080
+    for st in glob.glob("/sys/class/drm/card*-*/status"):
+        try:
+            if open(st).read().strip() != "connected":
+                continue
+            modes = open(os.path.join(os.path.dirname(st), "modes")).read().split()
+            if modes:
+                hh = int(modes[0].split("x")[1].rstrip("ip"))
+                # the built-in screen wins (that's where the login screen is read)
+                if "eDP" in st or "LVDS" in st:
+                    h = hh; break
+                h = min(h, hh)
+        except (OSError, ValueError, IndexError):
+            pass
+    return f"{min(1.0, round(h / 1080, 2)):.2f}"
+
+
 def options():
     cfg = theme_config()
     u = user_file()
     out = {}
     for k in OPTIONS:
         sec, key = k.split("/")
+        if sec == "General":     # top-level keys of the theme's config
+            out[k] = ini_get(u, sec, key) or ini_get(cfg, sec, key) or ""
+            continue
         out[k] = ini_get(u, sec, key) or ini_get(cfg, sec, key) or ""
     for k, sec in (("font", TEXT_FONT_KEYS[2]), ("clock-font", "LockScreen.Clock")):
         out[k] = ini_get(u, sec, "font-family") or ini_get(cfg, sec, "font-family") or ""
@@ -343,6 +373,8 @@ def main(a):
         return set_background(a[1])
     if a[0] == "options":
         return options()
+    if a[0] == "auto-scale":
+        return set_options(["General/scale=" + auto_scale()])
     if a[0] == "set-options":
         return set_options(a[1:])
     if a[0] == "root-setup" and len(a) > 2:

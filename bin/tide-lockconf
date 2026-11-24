@@ -104,7 +104,7 @@ def build():
             parts += [header] + (["    monitor ="] if not named and name != "general" else []) + lines + ["}"]; continue
         for mon, h in mons:
             f = h / 2160
-            g = max(0.6, f)
+            g = max(0.5, f)
             body = scaled(lines, f, g, name == "input-field") if f < 0.99 else lines
             parts += [header, f"    monitor = {mon}"] + body + ["}", ""]
     return "\n".join(parts) + "\n"
