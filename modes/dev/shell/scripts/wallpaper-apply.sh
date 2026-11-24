@@ -67,10 +67,17 @@ recent="$HOME/.local/state/tide/wallpapers-recent"
 mkdir -p "$(dirname "$recent")"
 { echo "$file"; grep -vxF "$file" "$recent" 2>/dev/null; } | head -24 > "$recent.tmp" && mv "$recent.tmp" "$recent"
 
-# through scripts/matugen.sh: matugen 4 would otherwise wait for a colour to be picked
-"$(dirname "$0")/matugen.sh" image "$colors_from"
-# Tide's own colors (~/.config/Tide/colors: colors.css for the shell, hyprlock-colors.conf)
-"$(dirname "$0")/matugen.sh" image -c "$HOME/.config/Tide/colors/matugen.toml" "$colors_from"
+# Tide's own colours first (~/.config/Tide/colors: colors.css for the shell,
+# hyprlock-colors.conf), from the picker's thumbnail when there is one: the same colours
+# as the full image, many times faster. Through scripts/matugen.sh: matugen 4 would
+# otherwise wait for a colour to be picked.
+mat_from="$colors_from"
+[[ -s "$thumb" ]] && mat_from="$thumb"
+"$(dirname "$0")/matugen.sh" image -c "$HOME/.config/Tide/colors/matugen.toml" "$mat_from"
+# then your own matugen setup (other apps' themes), if you have one, without waiting
+if [[ -f "$HOME/.config/matugen/config.toml" ]]; then
+    "$(dirname "$0")/matugen.sh" image "$colors_from" >/dev/null 2>&1 &
+fi
 
 if [[ "$rgb" == 1 ]]; then
     # the lights take the wallpaper's color, vivid, at "rgbBrightness" (scripts/rgb-apply.sh)
