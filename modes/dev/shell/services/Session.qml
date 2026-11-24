@@ -32,7 +32,7 @@ Singleton {
     // Tide tools allowed in this mode (when its apps are limited); the island's own
     // modes, the Eve panel, dictation and widget editing ask here first
     readonly property var toolNames: ({ calculator: "The calculator", clipboard: "Clipboard history", capture: "Capture", dictation: "Dictation",
-                                        eve: "Eve", wallpapers: "The wallpaper picker", widgets: "Editing widgets" })
+                                        eve: "The AI", wallpapers: "The wallpaper picker", widgets: "Editing widgets" })
     function toolAllowed(t) { return !active || !s.limit || !s.tools || s.tools[t] !== false; }
     // false (and the island says why) when the tool is blocked
     function useTool(t) {

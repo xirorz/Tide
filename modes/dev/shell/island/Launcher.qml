@@ -11,6 +11,8 @@ import "MathEval.js" as M
 // Typing an expression shows the result at the top; Enter copies it.
 Item {
     id: lr
+    // the live mode's row, named after the assistant (ai.json; "AI" without one)
+    readonly property string talkTitle: "Talk to " + EveData.assistantName
     signal closeRequested()
     property string query: ""
     property int sel: 0
@@ -69,9 +71,9 @@ Item {
         toolRow("Resource center", "GPU, CPU, memory, disk, network and processes", Icons.gauge, "Ctrl+Shift+Esc", "resources"),
         toolRow("Power menu", "Lock, suspend, log out, restart, shut down", Icons.power, "Mod+Esc", "power"),
         toolRow("Switch theme", Modes.list.map(m => m.name).join(", "), Icons.themes, "Mod+T", "themes"),
-        toolRow("Talk to Eve", "Live mode: listening, thinking, working, speaking", Icons.eve, "Mod+Alt+E", "eve")
-    ].filter(r => (Theme.aiEnabled || r.title !== "Talk to Eve")
-                && Session.toolAllowed(({ "Calculator": "calculator", "Clipboard history": "clipboard", "Talk to Eve": "eve" })[r.title] || "-")
+        toolRow(talkTitle, "Live mode: listening, thinking, working, speaking", Icons.eve, "Mod+Alt+E", "eve")
+    ].filter(r => (Theme.aiEnabled || r.title !== talkTitle)
+                && Session.toolAllowed(({ "Calculator": "calculator", "Clipboard history": "clipboard", [talkTitle]: "eve" })[r.title] || "-")
                 && !(r.title === "Switch theme" && Session.locked))
     readonly property var modes: (Session.locked || limited ? [] : Modes.list).map(m => ({
         title: m.name, sub: m.active ? m.description + " · active" : m.description, icon: Icons.themes, key: "", tool: false,

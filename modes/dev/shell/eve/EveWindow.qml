@@ -12,7 +12,7 @@ LazyLoader {
     active: EveData.open && Theme.aiEnabled
     FloatingWindow {
         id: w
-        title: "Eve"
+        title: "AI"
         color: "transparent"
         visible: true
         // kept in design units, so it grows with Appearance → Interface size

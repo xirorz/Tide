@@ -27,7 +27,7 @@ Rectangle {
     property bool lockout: false
     // Tide's own tools while the apps are limited
     readonly property var toolList: [["calculator", "Calculator"], ["clipboard", "Clipboard"], ["capture", "Capture"], ["dictation", "Dictation"],
-                                     ["eve", "Eve (live and panel)"], ["wallpapers", "Wallpaper picker"], ["widgets", "Widgets edit"]]
+                                     ["eve", "AI (panel and live mode)"], ["wallpapers", "Wallpaper picker"], ["widgets", "Widgets edit"]]
     readonly property var toolDefaults: ({ calculator: true, clipboard: true, capture: true, dictation: true, eve: false, wallpapers: false, widgets: false })
     property var tools: Object.assign({}, toolDefaults)
     property bool saving: false
