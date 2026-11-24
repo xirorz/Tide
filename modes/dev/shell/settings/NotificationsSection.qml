@@ -13,16 +13,6 @@ ColumnLayout {
     Heading { text: "Notifications"; sub: "Tide shows every app's notifications. Mute the ones you don't want." }
 
     SCard {
-        title: "Steam"
-        SRow {
-            last: true
-            label: "Hide Steam's download and install pop-ups"
-            sub: "Tide tells you when a game it installs or removes is done. Friend messages still show."
-            SToggle { on: Notifications.steamTideNotices; onToggled: Notifications.setSteamTideNotices(!on) }
-        }
-    }
-
-    SCard {
         id: appsCard
         title: "Apps"
         readonly property var names: {
