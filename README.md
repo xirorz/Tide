@@ -16,10 +16,10 @@ cd Tide
 ./install.sh
 ```
 
-It starts with a few quick choices, each with a recommended answer (Enter) and most
-with Skip: AUR helper (yay or paru, when there's neither), web browser, file manager
-(Super+E), terminal (Super+Enter), code editor, video player, games (Steam, Lutris),
-Bluetooth and Flatpak. `./install.sh --yes` takes the recommended answers without asking.
+It asks only three things, with nothing pre-picked: your web browser and file manager
+(or skip, to keep what you have) and your terminal. It asks for an AUR helper too if the
+PC has none. Bluetooth is set up only when the PC has it. `./install.sh --yes` asks
+nothing and installs only what Tide needs.
 
 Then the installer checks the PC, installs whatever is missing (from the
 official repos and the AUR, with yay or paru; it installs yay if there's neither) and

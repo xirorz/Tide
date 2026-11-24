@@ -2,7 +2,7 @@
 # Tide installer: run it once from the cloned folder, as yourself (not root).
 #   ./install.sh            a few questions (browser, file manager, ...), then it checks
 #                           this PC, installs what's missing and sets Tide up
-#   ./install.sh --yes      no questions: the recommended choice for each
+#   ./install.sh --yes      no questions: only what Tide needs (choices skipped)
 #   ./install.sh --dry-run  only say what it would do (combine with --yes)
 # It's safe to run again: anything already there is left as it is. Files it replaces
 # are kept next to them as <file>.before-tide.
@@ -28,20 +28,18 @@ command -v pacman >/dev/null || { echo "Tide's installer needs an Arch-based sys
 say "Arch-based system: yes"
 
 # ---- what you'd like with it (each can be skipped) ----
-# ask "question" "recommended" "key|Label|packages" ... → sets ANSWER to the key
+# ask "question" "key|Label|packages" ... → sets ANSWER to the key. Nothing is
+# recommended: Enter means Skip where there is one, otherwise a number is needed.
 ask() {
-    local q=$1 rec=$2; shift 2
-    local opts=("$@") i=1 o key
-    if [ $YES = 1 ]; then ANSWER=$rec; return; fi
+    local q=$1; shift
+    local opts=("$@") i=1 o skip=""
+    for o in "${opts[@]}"; do [ "${o%%|*}" = skip ] && skip=skip; done
+    if [ $YES = 1 ]; then ANSWER=${skip:-${opts[0]%%|*}}; return; fi
     printf '\n  %s%s%s\n' "$B" "$q" "$R"
-    for o in "${opts[@]}"; do
-        key=${o%%|*}; o=${o#*|}
-        printf '    %s%d%s  %s%s\n' "$B" $i "$R" "${o%%|*}" "$([ "$key" = "$rec" ] && echo "  ${D}(recommended)${R}")"
-        i=$((i + 1))
-    done
+    for o in "${opts[@]}"; do o=${o#*|}; printf '    %s%d%s  %s\n' "$B" $i "$R" "${o%%|*}"; i=$((i + 1)); done
     while true; do
-        read -r -p "  Number (Enter = recommended): " n
-        if [ -z "$n" ]; then ANSWER=$rec; return; fi
+        read -r -p "  Number${skip:+ (Enter = skip)}: " n
+        if [ -z "$n" ] && [ -n "$skip" ]; then ANSWER=skip; return; fi
         if [[ $n =~ ^[0-9]+$ ]] && [ "$n" -ge 1 ] && [ "$n" -le ${#opts[@]} ]; then ANSWER=${opts[$((n - 1))]%%|*}; return; fi
     done
 }
@@ -50,27 +48,20 @@ pkgs_of() {  # the packages of the chosen option
 }
 EXTRA=()
 step "A few choices"
-[ $YES = 1 ] && say "no questions (--yes): the recommended choice for each"
+[ $YES = 1 ] && say "no questions (--yes): only what Tide needs"
 
 if [ -z "$(bash "$HERE/modes/dev/shell/scripts/aur-helper.sh" 2>/dev/null || true)" ]; then
-    O=("yay|yay|" "paru|paru|"); ask "AUR helper (installs apps that aren't in Arch's own repos)" yay "${O[@]}"; WANT_HELPER=$ANSWER
+    O=("yay|yay|" "paru|paru|"); ask "AUR helper (Tide needs one: some of its parts are in the AUR)" "${O[@]}"; WANT_HELPER=$ANSWER
 fi
 O=("firefox|Firefox|firefox" "chromium|Chromium|chromium" "brave|Brave|brave-bin" "zen|Zen Browser|zen-browser-bin" "chrome|Google Chrome|google-chrome" "skip|Skip (keep what I have)|")
-ask "Web browser" firefox "${O[@]}"; BROWSER=$ANSWER; EXTRA+=($(pkgs_of "$ANSWER" "${O[@]}"))
-O=("nemo|Nemo|nemo" "nautilus|Nautilus (GNOME Files)|nautilus" "thunar|Thunar|thunar" "dolphin|Dolphin|dolphin" "skip|Skip|")
-ask "File manager (Super+E)" nemo "${O[@]}"; FILES=$ANSWER; EXTRA+=($(pkgs_of "$ANSWER" "${O[@]}"))
-O=("kitty|Kitty|kitty" "alacritty|Alacritty|alacritty" "foot|Foot|foot" "ghostty|Ghostty|ghostty" "wezterm|WezTerm|wezterm")
-ask "Terminal (Super+Enter)" kitty "${O[@]}"; TERMINAL=$ANSWER; EXTRA+=($(pkgs_of "$ANSWER" "${O[@]}"))
-O=("code|VS Code|visual-studio-code-bin" "zed|Zed|zed" "kate|Kate|kate" "gnome-text-editor|GNOME Text Editor|gnome-text-editor" "neovim|Neovim|neovim" "skip|Skip|")
-ask "Code / text editor" skip "${O[@]}"; EXTRA+=($(pkgs_of "$ANSWER" "${O[@]}"))
-O=("mpv|mpv|mpv" "vlc|VLC|vlc" "celluloid|Celluloid|celluloid" "skip|Skip|")
-ask "Video player" mpv "${O[@]}"; EXTRA+=($(pkgs_of "$ANSWER" "${O[@]}"))
-O=("steam|Steam|steam" "lutris|Lutris|lutris" "both|Steam and Lutris|steam lutris" "skip|Skip|")
-ask "Games (Tide's game launcher finds them, Super+G)" skip "${O[@]}"; GAMES=$ANSWER; EXTRA+=($(pkgs_of "$ANSWER" "${O[@]}"))
-O=("yes|Yes|bluez bluez-utils" "no|No|")
-ask "Bluetooth" yes "${O[@]}"; BLUETOOTH=$ANSWER; EXTRA+=($(pkgs_of "$ANSWER" "${O[@]}"))
-O=("no|No|" "yes|Yes|flatpak")
-ask "Flatpak apps (Tide's update center keeps them up to date too)" no "${O[@]}"; EXTRA+=($(pkgs_of "$ANSWER" "${O[@]}"))
+ask "Web browser" "${O[@]}"; BROWSER=$ANSWER; EXTRA+=($(pkgs_of "$ANSWER" "${O[@]}"))
+O=("nemo|Nemo|nemo" "nautilus|Nautilus (GNOME Files)|nautilus" "thunar|Thunar|thunar" "dolphin|Dolphin|dolphin" "skip|Skip (keep what I have)|")
+ask "File manager (Super+E)" "${O[@]}"; FILES=$ANSWER; EXTRA+=($(pkgs_of "$ANSWER" "${O[@]}"))
+O=("kitty|Kitty (Tide's update window uses it either way)|" "alacritty|Alacritty|alacritty" "foot|Foot|foot" "ghostty|Ghostty|ghostty" "wezterm|WezTerm|wezterm")
+ask "Terminal (Super+Enter)" "${O[@]}"; TERMINAL=$ANSWER; EXTRA+=($(pkgs_of "$ANSWER" "${O[@]}"))
+# Bluetooth: only when the PC has it (no question)
+BLUETOOTH=no
+if [ -n "$(ls /sys/class/bluetooth 2>/dev/null)" ]; then BLUETOOTH=yes; EXTRA+=(bluez bluez-utils); say "Bluetooth: this PC has it, so it's set up"; fi
 
 # ---- where Tide lives: ~/.config/Tide ----
 step "Placing Tide in ~/.config/Tide"
@@ -103,16 +94,6 @@ PKGS=(
     pavucontrol
 )
 PKGS+=("${EXTRA[@]}")
-# Steam is in the multilib repo, which a fresh Arch has switched off
-if [[ " ${EXTRA[*]} " == *" steam "* ]] && ! grep -q '^\[multilib\]' /etc/pacman.conf; then
-    say "turning on the multilib repo (Steam lives there)"
-    if [ $DRY = 1 ]; then say "would uncomment [multilib] in /etc/pacman.conf"
-    else
-        sudo cp -n /etc/pacman.conf /etc/pacman.conf.before-tide
-        sudo sed -i '/^#\[multilib\]/{s/^#//;n;s/^#//}' /etc/pacman.conf
-        sudo pacman -Sy
-    fi
-fi
 mapfile -t MISSING < <(pacman -T "${PKGS[@]}" 2>/dev/null || true)
 if [ ${#MISSING[@]} -eq 0 ]; then
     say "everything Tide needs is installed"
@@ -233,7 +214,7 @@ if ! systemctl -q is-active NetworkManager.service 2>/dev/null; then
 fi
 
 # ---- the Steam helper: only with Steam on the PC ----
-if { command -v steam >/dev/null || [[ " ${EXTRA[*]} " == *" steam "* ]]; } && [ ! -x "$HERE/bin/tide-steam" ]; then
+if command -v steam >/dev/null && [ ! -x "$HERE/bin/tide-steam" ]; then
     step "Steam helper (installs games from the launcher)"
     pacman -T rust >/dev/null 2>&1 || run sudo pacman -S --needed --noconfirm rust
     run "$HERE/bin/build-tide-steam"
