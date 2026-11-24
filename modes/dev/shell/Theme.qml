@@ -112,7 +112,7 @@ Singleton {
     readonly property real radiusScale: roundness / 18
     // Settings → AI: off hides every AI piece (bar button, launcher row, Eve in the
     // island and its shortcut, the Eve panel)
-    readonly property bool aiEnabled: opt("aiEnabled", true)
+    readonly property bool aiEnabled: opt("aiEnabled", false)   // off until you turn it on (Settings → AI)
     // Appearance → Bar style: "pills" (the design) or "text" (bare text and icons)
     readonly property string barStyle: opt("barStyle", "pills")
     // type scale: [size px, weight, letter spacing px]

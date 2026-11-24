@@ -103,6 +103,9 @@ Item {
         }
         Divider { visible: root.devices.length > 0 }
 
+        // the laptop's own battery (nothing on a desktop)
+        LaptopBattery {}
+
         Icon {
             path: Icons.volume
             MouseArea {
