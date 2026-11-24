@@ -100,7 +100,7 @@ ColumnLayout {
             sub: "The login screen theme Tide uses. It installs from the AUR with your AUR helper."
             SBtn {
                 label: "Install…"; primary: true
-                onClicked: Quickshell.execDetached([Quickshell.env("HOME") + "/.config/Tide/bin/tide-term", "Install SilentSDDM", "bash", "-c",
+                onClicked: IslandState.closeSettings() || Quickshell.execDetached([Quickshell.env("HOME") + "/.config/Tide/bin/tide-term", "Install SilentSDDM", "bash", "-c",
                     "h=$(bash '" + Quickshell.shellDir + "/scripts/aur-helper.sh'); if [ -z \"$h\" ]; then echo 'No AUR helper (yay or paru) found.'; else $h -S sddm-silent-theme; fi; read -r -s -n 1 -p 'Press any key to close this window.'"])
             }
         }

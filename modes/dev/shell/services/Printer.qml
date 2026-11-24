@@ -108,12 +108,14 @@ Singleton {
     function allowFind() {
         if (!fw.cmd || allower.running) return;
         allowError = "";
+        Games.picking = true;             // the password window must be in front of Settings
         allower.running = true;
     }
     Process {
         id: allower
         command: ["pkexec", "sh", "-c", root.fw.cmd || "true"]
         onExited: code => {
+            Games.picking = false;        // Settings comes back (it stepped aside for the password)
             if (code === 0) root.find();
             else root.allowError = code === 126 || code === 127 ? "Cancelled, or not allowed to change the firewall" : "The firewall command failed (exit " + code + ")";
         }
