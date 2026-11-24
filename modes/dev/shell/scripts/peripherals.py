@@ -31,6 +31,16 @@ def kind(dev, model):
     return ""
 
 
+# Some headsets (Corsair Void) report 100% the moment they start charging, whatever
+# the real level: while one charges at a reported 100%, keep the last level it had on
+# battery (kept across restarts) until it says it's full or comes off the charger.
+KEEP = os.path.expanduser("~/.cache/tide/peripherals.json")
+try:
+    with open(KEEP) as f:
+        known = json.load(f)
+except (OSError, ValueError):
+    known = {}
+
 last = None
 while True:
     out = []
@@ -51,8 +61,20 @@ while True:
         k = kind(dev, model)
         if not k:
             continue
-        out.append({"id": dev, "kind": k, "model": model, "percent": int(cap),
-                    "charging": read(p, "status") == "Charging"})
+        status = read(p, "status")
+        pct, charging, estimated = int(cap), status == "Charging", False
+        if not charging and status != "Full" and known.get(dev) != pct:
+            known[dev] = pct
+            try:
+                os.makedirs(os.path.dirname(KEEP), exist_ok=True)
+                with open(KEEP, "w") as f:
+                    json.dump(known, f)
+            except OSError:
+                pass
+        elif charging and pct == 100 and isinstance(known.get(dev), int) and known[dev] < 100:
+            pct, estimated = known[dev], True
+        out.append({"id": dev, "kind": k, "model": model, "percent": pct,
+                    "charging": charging, "estimated": estimated})
     line = json.dumps(out)
     if line != last:
         print(line, flush=True)
