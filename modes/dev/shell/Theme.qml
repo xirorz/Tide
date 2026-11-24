@@ -25,12 +25,18 @@ Singleton {
     // dark and solid, in the wallpaper's own dark surface colours (matugen, colors.css)
     readonly property string surface: opt("surface", "glass")
     readonly property bool tinted: surface === "tinted"
-    function tone(role, fallback) { return tinted && roles[role] ? roles[role] : fallback; }
+    // the wallpaper's dark surface with a little of its accent mixed in, so it reads as
+    // tinted even when the wallpaper is dark or grey
+    function tone(role, fallback, mix) {
+        if (!tinted) return fallback;
+        const base = roles[role] || fallback;
+        return Qt.tint(base, Qt.rgba(accent.r, accent.g, accent.b, mix || 0.12));
+    }
     // solid fills (dark and tinted); they fade when the wallpaper changes
-    property color barFill: tone("surface-low", "#0D0D0F")
-    property color panelFill: tone("surface", "#0D0D0F")
-    property color islandFill: tone("surface-lowest", "#000000")
-    property color tileFill: tone("surface-container", "#18181B")
+    property color barFill: tone("surface-low", "#0D0D0F", 0.12)
+    property color panelFill: tone("surface", "#0D0D0F", 0.1)
+    property color islandFill: tone("surface-lowest", "#000000", 0.08)
+    property color tileFill: tone("surface-container", "#18181B", 0.14)
     Behavior on barFill { ColorAnimation { duration: 600 } }
     Behavior on panelFill { ColorAnimation { duration: 600 } }
     Behavior on islandFill { ColorAnimation { duration: 600 } }
@@ -140,8 +146,11 @@ Singleton {
     readonly property string recordStopCommand: opt("recordStopCommand", "pkill -INT -x wf-recorder")
     readonly property int updatesEveryMinutes: opt("updatesEveryMinutes", 30)
     // control center output buttons: part of each PipeWire sink's name
-    readonly property string speakersSink: opt("speakersSink", "Scarlett")
-    readonly property string headphonesSink: opt("headphonesSink", "CORSAIR VOID")
+    // two outputs to flip between (parts of their names): set, the control center shows
+    // them as buttons and the volume pop-up flips between them; not set, it lists every
+    // output and input to pick from
+    readonly property string speakersSink: opt("speakersSink", "")
+    readonly property string headphonesSink: opt("headphonesSink", "")
     readonly property color tile: surface === "glass" ? white(0.08) : tileFill   // the sheet's tile
 
     // the control center's Dark/Glass/Tinted switch writes "surface" back to theme.json

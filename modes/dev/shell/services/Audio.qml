@@ -10,7 +10,9 @@ import ".."
 Singleton {
     id: root
     readonly property var sinks: Pipewire.nodes.values.filter(n => n.isSink && !n.isStream && n.audio)
-    function sinkFor(part) { return sinks.find(n => (n.description || n.name).indexOf(part) >= 0) || null; }
+    function sinkFor(part) { return part ? sinks.find(n => (n.description || n.name).indexOf(part) >= 0) || null : null; }
+    // both named outputs exist here: the control center shows them as two buttons
+    readonly property bool quickPair: speakers !== null && headphones !== null
     readonly property var speakers: sinkFor(Theme.speakersSink)
     readonly property var headphones: sinkFor(Theme.headphonesSink)
     readonly property var sink: Pipewire.defaultAudioSink
