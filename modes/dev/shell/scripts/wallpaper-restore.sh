@@ -22,6 +22,8 @@ if ! pgrep -x awww-daemon >/dev/null && systemctl --user cat tide-awww.service >
     systemctl --user reset-failed tide-awww.service
     systemctl --user restart tide-awww.service
 fi
+# the lock screen, sized for the screens connected now (only rewritten when they changed)
+"$HOME/.config/Tide/bin/tide-lockconf" >/dev/null 2>&1 &
 mons=$(hyprctl monitors -j | python3 -I -c 'import json,sys; print(" ".join(m["name"] for m in json.load(sys.stdin)))')
 for m in $mons; do
     f=$(python3 -I -c 'import json,sys

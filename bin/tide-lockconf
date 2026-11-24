@@ -1,0 +1,131 @@
+#!/usr/bin/env python3
+"""Writes the lock screen (~/.config/hypr/hyprlock.conf) for the screens connected now.
+
+Tide's lock screen (install/hyprlock.conf) is laid out on a 4K screen. Each monitor
+gets its own copy of it (hyprlock's `monitor =`), scaled to that monitor's height:
+distances by height / 2160, text and boxes a little less (never below a readable size).
+A 4K screen gets exactly the design. Runs at install and at every login (monitors
+change); a hyprlock.conf that isn't Tide's is left alone.
+
+  tide-lockconf            write it
+  tide-lockconf --print    show what it would write
+"""
+import json, os, re, subprocess, sys
+from pathlib import Path
+
+TIDE = Path.home() / ".config/Tide"
+TEMPLATE = TIDE / "install/hyprlock.conf"
+OUT = Path.home() / ".config/hypr/hyprlock.conf"
+MARK = "Tide/colors/hyprlock-colors.conf"   # what makes a hyprlock.conf Tide's
+
+
+def monitors():
+    try:
+        ms = json.loads(subprocess.run(["hyprctl", "monitors", "-j"], capture_output=True, text=True).stdout or "[]")
+    except ValueError:
+        ms = []
+    out = []
+    for m in ms:
+        scale = m.get("scale") or 1
+        h = m["height"] / scale
+        if m.get("transform", 0) % 2 == 1:      # turned sideways
+            h = m["width"] / scale
+        out.append((m["name"], h))
+    return out
+
+
+def blocks(text):
+    """[(header line or None, [lines])]: top-level sections and the lines between them."""
+    out, cur, depth = [], None, 0
+    loose = []
+    for line in text.splitlines():
+        t = line.strip()
+        if depth == 0 and t.endswith("{"):
+            if loose:
+                out.append((None, loose)); loose = []
+            cur = (line, []); depth = 1
+            continue
+        if depth:
+            if t.startswith("}") and depth == 1:
+                out.append(cur); cur = None; depth = 0
+                continue
+            depth += t.count("{") - t.count("}")
+            cur[1].append(line)
+        else:
+            loose.append(line)
+    if loose:
+        out.append((None, loose))
+    return out
+
+
+def scaled(lines, f, g, is_input):
+    def num(v, k, minimum=None):
+        n = round(float(v) * k)
+        return str(n if minimum is None else max(minimum, n))
+    out = []
+    for line in lines:
+        m = re.match(r"^(\s*)(position|size|font_size|shadow_size|border_size|outline_thickness)\s*=\s*([^#]*?)(\s*#.*)?$", line)
+        if not m:
+            out.append(line); continue
+        ind, key, val, comment = m.group(1), m.group(2), m.group(3).strip(), m.group(4) or ""
+        parts = [p.strip() for p in val.split(",")]
+        try:
+            if key == "position":
+                parts = [num(p, f) if not p.endswith("%") else p for p in parts]
+            elif key == "font_size":
+                parts = [num(parts[0], g, 12)]
+            elif key == "size":
+                if is_input and len(parts) == 2:
+                    parts = [num(parts[0], g, 200), num(parts[1], g, 40)]
+                else:
+                    parts = [num(p, g, 24) if not p.endswith("%") else p for p in parts]
+            else:
+                parts = [num(parts[0], g, 0)]
+        except ValueError:
+            out.append(line); continue
+        out.append(f"{ind}{key} = {', '.join(parts)}{comment}")
+    return out
+
+
+def build():
+    text = TEMPLATE.read_text()
+    mons = monitors() or [("", 2160)]
+    parts = [f"# Written by Tide (bin/tide-lockconf) from install/hyprlock.conf, sized for: "
+             + ", ".join(f"{n or 'any'} ({int(h)}px high)" for n, h in mons), ""]
+    for header, lines in blocks(text):
+        if header is None:
+            parts += lines; continue
+        name = header.strip().rstrip("{").strip()
+        # "monitor =" with no name means every screen: that copy is made per screen here
+        named = any(re.match(r"^\s*monitor\s*=\s*\S", l) for l in lines)
+        lines = [l for l in lines if not re.match(r"^\s*monitor\s*=\s*$", l)]
+        if name == "general" or named or len(mons) == 1 and mons[0][1] >= 2000:
+            # shared, already per monitor, or a single 4K screen: as designed
+            parts += [header] + (["    monitor ="] if not named and name != "general" else []) + lines + ["}"]; continue
+        for mon, h in mons:
+            f = h / 2160
+            g = max(0.6, f)
+            body = scaled(lines, f, g, name == "input-field") if f < 0.99 else lines
+            parts += [header, f"    monitor = {mon}"] + body + ["}", ""]
+    return "\n".join(parts) + "\n"
+
+
+def main(a):
+    out = build()
+    if a[:1] == ["--print"]:
+        print(out); return 0
+    if OUT.exists() and MARK not in OUT.read_text():
+        print("tide-lockconf: ~/.config/hypr/hyprlock.conf isn't Tide's; left as it is", file=sys.stderr)
+        return 0
+    if OUT.exists() and OUT.read_text() == out:
+        return 0
+    OUT.parent.mkdir(parents=True, exist_ok=True)
+    tmp = OUT.with_suffix(".tmp")
+    tmp.write_text(out)
+    tmp.replace(OUT)
+    print("tide-lockconf: written for " + ", ".join(n for n, _ in monitors()))
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))
