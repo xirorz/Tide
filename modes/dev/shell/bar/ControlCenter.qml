@@ -139,6 +139,31 @@ Item {
     readonly property var btDevices: adapter ? adapter.devices.values.filter(d => d.paired) : []
     readonly property int btConnected: btDevices.filter(d => d.connected).length
     readonly property string btSub: btOn ? "On · " + btConnected + (btConnected === 1 ? " device" : " devices") : "Off"
+    // looking for new devices while the Bluetooth list is open (stops when it closes)
+    readonly property bool btSearch: open && expand === "bt" && btOn
+    onBtSearchChanged: if (adapter && adapter.discovering !== btSearch) adapter.discovering = btSearch
+    // nearby devices that aren't paired yet (named ones: unnamed ones are mostly beacons)
+    readonly property var btNearby: adapter ? adapter.devices.values.filter(d => !d.paired && d.deviceName) : []
+    // pair, trust (so it reconnects by itself later), then connect
+    property var btAsked: ({})          // addresses paired from here
+    function btPair(d) {
+        if (d.pairing) { d.cancelPair(); return; }
+        btAsked[d.address] = true;
+        d.pair();
+    }
+    Instantiator {
+        model: cc.adapter ? cc.adapter.devices : null
+        delegate: Connections {
+            required property var modelData
+            target: modelData
+            function onPairedChanged() {
+                if (!modelData.paired || !cc.btAsked[modelData.address]) return;
+                delete cc.btAsked[modelData.address];
+                modelData.trusted = true;
+                modelData.connect();
+            }
+        }
+    }
     function btIcon(d) {
         const i = d.icon || "";
         if (i.indexOf("headset") >= 0 || i.indexOf("headphone") >= 0) return Icons.headset;
@@ -328,7 +353,7 @@ Item {
                     }
                 }
             }
-            SectionLabel { visible: cc.btOn; text: "Devices" }
+            SectionLabel { visible: cc.btOn && cc.btDevices.length > 0; text: "Devices" }
             Repeater {
                 model: cc.btOn ? cc.btDevices : []
                 delegate: ListRow {
@@ -343,6 +368,27 @@ Item {
                     action: modelData.connected ? "Disconnect" : "Connect"
                     onClicked: modelData.connected ? modelData.disconnect() : modelData.connect()
                 }
+            }
+            SectionLabel { visible: cc.btOn; text: cc.adapter && cc.adapter.discovering ? "Nearby · searching…" : "Nearby" }
+            Repeater {
+                model: cc.btOn ? cc.btNearby : []
+                delegate: ListRow {
+                    required property var modelData
+                    rowHeight: Theme.s(44)
+                    icon: cc.btIcon(modelData)
+                    iconColor: Theme.muted
+                    title: modelData.deviceName
+                    sub: modelData.pairing ? "Pairing…" : "Not paired"
+                    action: modelData.pairing ? "Cancel" : "Pair"
+                    onClicked: cc.btPair(modelData)
+                }
+            }
+            T {
+                visible: cc.btOn && cc.btNearby.length === 0
+                Layout.leftMargin: Theme.s(8)
+                Layout.bottomMargin: Theme.s(4)
+                text: "Put the device in pairing mode to see it here"
+                px: Theme.s(11); color: Theme.muted
             }
         }
 
