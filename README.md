@@ -16,12 +16,20 @@ cd Tide
 ./install.sh
 ```
 
-That's all. The installer checks the PC, installs whatever is missing (from the
+It starts with a few quick choices, each with a recommended answer (Enter) and most
+with Skip: AUR helper (yay or paru, when there's neither), web browser, file manager
+(Super+E), terminal (Super+Enter), code editor, video player, games (Steam, Lutris),
+Bluetooth and Flatpak. `./install.sh --yes` takes the recommended answers without asking.
+
+Then the installer checks the PC, installs whatever is missing (from the
 official repos and the AUR, with yay or paru; it installs yay if there's neither) and
 sets Tide up: Hyprland's config, the lock and idle screens, the wallpaper daemon,
 fonts, colours, and SilentSDDM as the login screen. Files it replaces are kept next to
 them as `<file>.before-tide`. It's safe to run again; `./install.sh --dry-run` only
-shows what it would do. Then log out (or restart), pick Hyprland and log in.
+shows what it would do. Then restart, pick Hyprland on the login screen and log in.
+
+It works from a bare console right after installing Arch or CachyOS: you need your user
+(with sudo), a network connection and git (`sudo pacman -S git`).
 
 Tide lives in `~/.config/Tide` (the installer links it there if you cloned it
 elsewhere). Your own settings are made on first use and stay out of the repo; extras
