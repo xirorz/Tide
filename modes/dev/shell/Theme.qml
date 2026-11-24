@@ -162,7 +162,7 @@ Singleton {
     readonly property color tile: surface === "glass" ? white(0.08) : tileFill   // the sheet's tile
 
     // the control center's Dark/Glass/Tinted switch writes "surface" back to theme.json
-    function setSurface(v) { console.info("tide: surface", surface, "->", v); set("surface", v); }
+    function setSurface(v) { set("surface", v); }
     // write one setting back to theme.json (and apply it now; the file watcher
     // doesn't report our own write)
     function set(key, value) {
