@@ -409,9 +409,24 @@ Item {
             hPadding: Theme.s(14)
             spacing: Theme.s(8)
 
-            T { text: "Sound"; px: Theme.s(14); weight: Font.DemiBold }
-            // output: the device (click to pick another) and its volume
-            DeviceButton { label: "Output"; device: Audio.label(Audio.sink); open: cc.expand === "out"; onClicked: cc.expand = cc.expand === "out" ? "" : "out" }
+            RowLayout {
+                Layout.fillWidth: true
+                T { text: "Sound"; px: Theme.s(14); weight: Font.DemiBold; Layout.fillWidth: true }
+                T { visible: Audio.quickPair; text: "Output"; px: Theme.s(12); color: Theme.muted }
+            }
+            // two named outputs (theme.json speakersSink / headphonesSink): one button each
+            GridLayout {
+                visible: Audio.quickPair
+                Layout.fillWidth: true
+                columns: 2
+                columnSpacing: Theme.s(6)
+                uniformCellWidths: true
+                OutputButton { label: "Studio speakers"; icon: Icons.speakers; node: Audio.speakers }
+                OutputButton { label: "Headphones"; icon: Icons.headset; node: Audio.headphones }
+            }
+            // otherwise: the output in use (click to pick another) and its volume
+            DeviceButton {
+                visible: !Audio.quickPair; label: "Output"; device: Audio.label(Audio.sink); open: cc.expand === "out"; onClicked: cc.expand = cc.expand === "out" ? "" : "out" }
             Repeater {
                 model: cc.expand === "out" ? Audio.sinks : []
                 delegate: DeviceRow { required property var modelData; node: modelData; on: modelData === Audio.sink; onClicked: { Audio.use(modelData); cc.expand = ""; } }
@@ -432,13 +447,15 @@ Item {
                     px: Theme.s(11); mono: true; color: Theme.muted
                 }
             }
-            // input: the microphone and its level
-            DeviceButton { label: "Input"; device: Audio.label(Audio.source); open: cc.expand === "in"; onClicked: cc.expand = cc.expand === "in" ? "" : "in" }
+            // input: the microphone and its level (with the pickers)
+            DeviceButton {
+                visible: !Audio.quickPair; label: "Input"; device: Audio.label(Audio.source); open: cc.expand === "in"; onClicked: cc.expand = cc.expand === "in" ? "" : "in" }
             Repeater {
                 model: cc.expand === "in" ? Audio.sources : []
                 delegate: DeviceRow { required property var modelData; node: modelData; on: modelData === Audio.source; onClicked: { Audio.useSource(modelData); cc.expand = ""; } }
             }
             RowLayout {
+                visible: !Audio.quickPair
                 Layout.fillWidth: true
                 spacing: Theme.s(10)
                 Icon { path: Icons.mic; color: Theme.muted }
