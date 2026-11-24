@@ -113,7 +113,7 @@ Singleton {
     GlobalShortcut {
         appid: "tide"
         name: "eve"
-        description: "Talk to Eve (live mode)"
+        description: "Talk to the AI (live mode)"
         onPressed: if (Theme.aiEnabled) root.active ? root.end() : root.start(true)
     }
 

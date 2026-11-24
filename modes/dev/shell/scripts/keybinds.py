@@ -12,7 +12,7 @@ TIDE = {
     "launcher": "Open the launcher", "calculator": "Calculator", "controlcenter": "Control center",
     "clipboard": "Clipboard history", "capture": "Capture tools", "power": "Power menu",
     "resources": "Resource center", "wallpapers": "Wallpapers", "themes": "Switch theme",
-    "eve": "Talk to Eve", "updates": "Updates",
+    "eve": "Talk to the AI", "updates": "Updates",
 }
 KEYS = {"SUPER": "Mod", "RETURN": "Enter", "ESCAPE": "Esc", "SPACE": "Space", "mouse_down": "Wheel down",
         "mouse_up": "Wheel up", "mouse:272": "Left drag", "mouse:273": "Right drag", "left": "←", "right": "→",
@@ -69,7 +69,7 @@ def name(k, act, comment):
         arg = cmd.split()[-1]
         return "Screens and modes", "Switch monitor input" + ("" if arg.endswith(".sh") else f" ({arg})")
     if "screen-reader" in cmd:
-        return "Apps and scripts", "Eve screen reader"
+        return "Apps and scripts", "Screen reader"
     if "padkeys" in cmd:
         return "Apps and scripts", "Pad keys settings"
     prog = os.path.basename(cmd.split()[0]) if cmd.split() else cmd

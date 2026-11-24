@@ -16,7 +16,7 @@ Singleton {
     id: root
 
     // ---------- backend status (from the bridge) ----------
-    property string assistantName: "Assistant"
+    property string assistantName: "AI"      // the backend's own name (ai.json) when it has one
     property bool configured: false     // ai.json names a backend
     property bool reachable: false      // the backend answers
     property bool ready: false          // and says it is ready (e.g. its model is loaded)
@@ -29,7 +29,7 @@ Singleton {
     // the panel's status line under the greeting
     readonly property string statusLine: !configured ? "Demo · not connected yet (Settings → AI)"
         : !reachable ? assistantName + " can't be reached" + (detail ? ": " + detail : "")
-        : !on ? assistantName + " is off. Turn her on with the power button."
+        : !on ? assistantName + " is off. Turn it on with the power button."
         : !ready ? assistantName + " is starting" + (detail ? " (" + detail + ")" : "")
         : assistantName + " is on and ready"
 
