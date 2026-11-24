@@ -4,9 +4,9 @@ import Quickshell
 import Quickshell.Services.Pipewire
 import ".."
 
-// The output sinks the control center and the volume pop-up switch between
-// ("speakersSink" / "headphonesSink" in theme.json are parts of their names), and
-// the default sink's volume.
+// Sound: the outputs and inputs (the control center picks the default of each) and
+// their volumes. "speakersSink" / "headphonesSink" in theme.json (parts of names) are
+// what the volume pop-up's quick switch flips between.
 Singleton {
     id: root
     readonly property var sinks: Pipewire.nodes.values.filter(n => n.isSink && !n.isStream && n.audio)
@@ -23,5 +23,13 @@ Singleton {
     // headphones <-> studio speakers
     function toggleOutput() { use(headphonesActive ? speakers : headphones); }
 
-    PwObjectTracker { objects: root.sink ? [root.sink] : [] }
+    // every output and input (the control center lists them), and the input's volume
+    readonly property var sources: Pipewire.nodes.values.filter(n => !n.isSink && !n.isStream && n.audio)
+    readonly property var source: Pipewire.defaultAudioSource
+    readonly property real inVolume: source && source.audio ? source.audio.volume : 0
+    function setInVolume(v) { if (source && source.audio) source.audio.volume = Math.max(0, Math.min(1, v)); }
+    function useSource(node) { if (node) Pipewire.preferredDefaultAudioSource = node; }
+    function label(n) { return n ? (n.description || n.nickname || n.name) : "None"; }
+
+    PwObjectTracker { objects: [root.sink, root.source].filter(n => n) }
 }

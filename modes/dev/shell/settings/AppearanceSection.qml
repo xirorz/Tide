@@ -143,4 +143,18 @@ ColumnLayout {
             SToggle { on: ap.appsDark; onToggled: ap.setAppsDark(!on) }
         }
     }
+
+    // where your wallpapers are (the picker, Super+W, shows this folder)
+    SCard {
+        title: "Wallpapers"
+        SRow {
+            last: true
+            label: "Wallpaper folder"
+            sub: Wallpapers.dir.replace(Quickshell.env("HOME"), "~") + " · " + Wallpapers.files.length + " wallpapers"
+            SBtn {
+                label: "Choose…"
+                onClicked: Games.pick(true, "Your wallpaper folder", p => { Theme.set("wallpaperDir", p); Qt.callLater(Wallpapers.refresh); })
+            }
+        }
+    }
 }

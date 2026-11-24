@@ -21,7 +21,7 @@ Item {
     signal closeRequested()
 
     width: Theme.s(384)
-    height: col.implicitHeight + Theme.s(28)
+    height: Math.min(col.implicitHeight + Theme.s(28), maxHeight)
     // the panel may grow down to 12px above the screen's bottom edge
     property real maxHeight: Theme.s(10000)
     // panel drop (motion sheet): 260ms, fade + 8px drop + 98% -> 100%, from the
@@ -51,7 +51,9 @@ Item {
         Notifications.markSeen();
     }
 
-    property string expand: ""          // "" | "net" | "bt"
+    property string expand: ""          // "" | "net" | "bt" | "out" | "in"
+    property bool rgbOk: false
+    Process { running: true; command: ["sh", "-c", "test -x \"$HOME/.local/bin/matugen-openrgb-sync\""]; onExited: code => cc.rgbOk = code === 0 }
 
     // ---------- helpers ----------
     readonly property string onBg: Theme.accent
@@ -198,6 +200,14 @@ Item {
     // swallow clicks on the panel so they don't reach the outside-click catcher
     MouseArea { anchors.fill: parent }
 
+    // taller than the screen (a laptop): it stops above the bottom edge and scrolls
+    Flickable {
+        id: scroller
+        anchors.fill: parent
+        contentHeight: col.implicitHeight + Theme.s(28)
+        clip: true
+        boundsBehavior: Flickable.StopAtBounds
+        interactive: contentHeight > height
     ColumnLayout {
         id: col
         x: Theme.s(14); y: Theme.s(14)
@@ -362,8 +372,10 @@ Item {
             }
         }
 
-        // ===== lighting: RGB brightness (the color comes from the wallpaper) =====
+        // ===== lighting: RGB brightness (the color comes from the wallpaper); only on a
+        // PC with the OpenRGB sync Tide drives (~/.local/bin/matugen-openrgb-sync) =====
         Card {
+            visible: cc.rgbOk
             padding: Theme.s(12)
             hPadding: Theme.s(14)
             spacing: Theme.s(8)
@@ -397,18 +409,12 @@ Item {
             hPadding: Theme.s(14)
             spacing: Theme.s(8)
 
-            RowLayout {
-                Layout.fillWidth: true
-                T { text: "Sound"; px: Theme.s(14); weight: Font.DemiBold; Layout.fillWidth: true }
-                T { text: "Output"; px: Theme.s(12); color: Theme.muted }
-            }
-            GridLayout {
-                Layout.fillWidth: true
-                columns: 2
-                columnSpacing: Theme.s(6)
-                uniformCellWidths: true
-                OutputButton { label: "Studio speakers"; icon: Icons.speakers; node: Audio.speakers }
-                OutputButton { label: "Headphones"; icon: Icons.headset; node: Audio.headphones }
+            T { text: "Sound"; px: Theme.s(14); weight: Font.DemiBold }
+            // output: the device (click to pick another) and its volume
+            DeviceButton { label: "Output"; device: Audio.label(Audio.sink); open: cc.expand === "out"; onClicked: cc.expand = cc.expand === "out" ? "" : "out" }
+            Repeater {
+                model: cc.expand === "out" ? Audio.sinks : []
+                delegate: DeviceRow { required property var modelData; node: modelData; on: modelData === Audio.sink; onClicked: { Audio.use(modelData); cc.expand = ""; } }
             }
             RowLayout {
                 Layout.fillWidth: true
@@ -423,6 +429,28 @@ Item {
                     Layout.preferredWidth: Theme.s(22)
                     horizontalAlignment: Text.AlignRight
                     text: Audio.sink ? Math.round(Audio.volume * 100) : "–"
+                    px: Theme.s(11); mono: true; color: Theme.muted
+                }
+            }
+            // input: the microphone and its level
+            DeviceButton { label: "Input"; device: Audio.label(Audio.source); open: cc.expand === "in"; onClicked: cc.expand = cc.expand === "in" ? "" : "in" }
+            Repeater {
+                model: cc.expand === "in" ? Audio.sources : []
+                delegate: DeviceRow { required property var modelData; node: modelData; on: modelData === Audio.source; onClicked: { Audio.useSource(modelData); cc.expand = ""; } }
+            }
+            RowLayout {
+                Layout.fillWidth: true
+                spacing: Theme.s(10)
+                Icon { path: Icons.mic; color: Theme.muted }
+                VolumeSlider {
+                    Layout.fillWidth: true
+                    value: Audio.inVolume
+                    onMoved: v => Audio.setInVolume(v)
+                }
+                T {
+                    Layout.preferredWidth: Theme.s(22)
+                    horizontalAlignment: Text.AlignRight
+                    text: Audio.source ? Math.round(Audio.inVolume * 100) : "–"
                     px: Theme.s(11); mono: true; color: Theme.muted
                 }
             }
@@ -622,6 +650,7 @@ Item {
                 }
             }
         }
+    }
     }
 
 
