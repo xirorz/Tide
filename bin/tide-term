@@ -1,0 +1,22 @@
+#!/usr/bin/env bash
+# Runs a command in a window of your terminal (Settings → Apps and Hyprland → Terminal),
+# with the class Tide's window rule floats (tide-updates): the update window, the AUR
+# review, pacdiff, installing SilentSDDM.
+#   tide-term <title> <command> [args...]
+title=$1; shift
+conf="$HOME/.config/Tide/modes/dev/theme.json"
+term=$(python3 -I -c 'import json,sys; print(json.load(open(sys.argv[1])).get("terminal", ""))' "$conf" 2>/dev/null)
+# not set, or not installed: the first terminal that is
+if [ -z "$term" ] || ! command -v "$term" >/dev/null; then
+    for t in kitty alacritty foot ghostty wezterm konsole gnome-terminal; do command -v "$t" >/dev/null && { term=$t; break; }; done
+fi
+case $term in
+    kitty)     exec kitty --config "$HOME/.config/Tide/modes/dev/shell/scripts/update-kitty.conf" --class tide-updates --title "$title" "$@" ;;
+    alacritty) exec alacritty --class tide-updates --title "$title" -e "$@" ;;
+    foot)      exec foot --app-id tide-updates --title "$title" "$@" ;;
+    ghostty)   exec ghostty --class=tide-updates --title="$title" -e "$@" ;;
+    wezterm)   exec wezterm start --class tide-updates -- "$@" ;;
+    konsole)   exec konsole -e "$@" ;;
+    gnome-terminal) exec gnome-terminal --title "$title" -- "$@" ;;
+    *) notify-send -a Tide "No terminal found" "Pick one in Settings → Apps and Hyprland"; exit 1 ;;
+esac

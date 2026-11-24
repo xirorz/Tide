@@ -5,7 +5,7 @@ import Quickshell.Io
 import ".."
 
 // Pending updates (scripts/updates.py: pacman, AUR, Flatpak, Arch news) and the
-// update itself, which runs in a floating kitty (scripts/update-run.sh). The panel
+// update itself, which runs in your terminal, floating (bin/tide-term, scripts/update-run.sh). The panel
 // follows the terminal's log: phase, percent, the package being installed, and
 // when pacman is waiting for an answer. A shell restart picks a running update up
 // again from the same log.
@@ -123,8 +123,7 @@ Singleton {
         runId = String(Date.now());
         seenRun = false;
         phase = "busy";
-        Quickshell.execDetached(["env", "TIDE_ACCENT=" + Theme.accentTarget, "TIDE_AUR_HELPER=" + aurHelper, "kitty", "--config", Quickshell.shellDir + "/scripts/update-kitty.conf",
-            "--class", "tide-updates", "--title", "Updates",
+        Quickshell.execDetached(["env", "TIDE_ACCENT=" + Theme.accentTarget, "TIDE_AUR_HELPER=" + aurHelper, termTool, "Updates",
             "bash", Quickshell.shellDir + "/scripts/update-run.sh", dryRun ? "dry" : "real",
             includeAur ? "1" : "0", includeFlatpak ? "1" : "0", snapshot ? "1" : "0", runId, reviewAur ? "1" : "0"]);
         follow.restart();
@@ -139,9 +138,11 @@ Singleton {
         phase = "list";
         check();
     }
+    // your terminal, as a floating window (bin/tide-term)
+    readonly property string termTool: Quickshell.env("HOME") + "/.config/Tide/bin/tide-term"
     function restartNow() { Quickshell.execDetached(["systemctl", "reboot"]); }
     function reviewPacnew() {
-        Quickshell.execDetached(["kitty", "--config", Quickshell.shellDir + "/scripts/update-kitty.conf", "--class", "tide-updates", "--title", "pacdiff", "sudo", "DIFFPROG=nvim -d", "pacdiff"]);
+        Quickshell.execDetached([termTool, "pacdiff", "sudo", "pacdiff"]);
     }
     function openNews() {
         const p = news.posts[0];

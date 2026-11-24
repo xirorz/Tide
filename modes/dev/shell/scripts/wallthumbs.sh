@@ -12,7 +12,7 @@ for f in "$dir"/*; do
     [[ -s "$t" ]] && continue
     case "${name,,}" in
         *.mp4|*.webm|*.mkv|*.mov) ffmpeg -loglevel error -y -ss 1 -i "$f" -frames:v 1 -vf scale=480:-1 "$t" 2>/dev/null || ffmpeg -loglevel error -y -ss 1 -i "$f" -frames:v 1 -vf "setparams=colorspace=bt709:color_trc=bt709:color_primaries=bt709,scale=480:-1" "$t" ;;
-        *) magick "$f[0]" -thumbnail 480x "$t" 2>/dev/null ;;
+        *) ffmpeg -loglevel error -y -i "$f" -frames:v 1 -vf scale=480:-1 "$t" 2>/dev/null ;;
     esac
 done
 echo done
