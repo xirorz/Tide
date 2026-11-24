@@ -214,6 +214,12 @@ PY
     sudo chown sddm:sddm /var/lib/sddm/state.conf 2>/dev/null || true
 fi
 say "login screen: Hyprland is the session"
+# Tide's login screen settings: its own file in the theme (made once, owned by you), and
+# the size for this PC's screen
+if [ $DRY = 1 ]; then say "would size the login screen for this screen"
+else
+    sudo "$HERE/bin/tide-login-screen" root-setup "$(id -u)" "$(id -g)" && "$HERE/bin/tide-login-screen" auto-scale >/dev/null || true
+fi
 dm=$(readlink -f /etc/systemd/system/display-manager.service 2>/dev/null || true)
 if [ "$(basename "${dm:-none}")" != sddm.service ]; then
     [ -n "$dm" ] && say "your login screen was $(basename "$dm"): switching to SDDM"

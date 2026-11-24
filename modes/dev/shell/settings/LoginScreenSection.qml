@@ -217,7 +217,22 @@ ColumnLayout {
                     ls.change("LockScreen.Message/position", "bottom-" + (v === "center" ? "center" : v));
                     ls.change("LockScreen.Clock/align", v);
                     ls.change("LockScreen.Message/align", v);
+                    // off the edge by 50 (the theme's left/right configs), or centred
+                    ls.change("LoginScreen.LoginArea/margin", v === "center" ? "-1" : "50");
+                    ls.change("LockScreen/padding-left", v === "left" ? "50" : "0");
+                    ls.change("LockScreen/padding-right", v === "right" ? "50" : "0");
+                    ls.change("LockScreen/padding-bottom", v === "center" ? "0" : "50");
                 }
+            }
+        }
+        SRow {
+            label: "Size"
+            sub: "The theme is made for 1080p screens; smaller screens look better smaller"
+            SSegment {
+                readonly property string cur: String(parseFloat(ls.opt("General/scale") || "1"))
+                options: [{ label: "70%", value: "0.7" }, { label: "80%", value: "0.8" }, { label: "90%", value: "0.9" }, { label: "100%", value: "1" }]
+                value: cur
+                onPicked: v => ls.change("General/scale", v === "1" ? "1.0" : v)
             }
         }
         SRow {
