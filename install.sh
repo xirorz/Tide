@@ -156,6 +156,10 @@ for f in hyprlock.conf hypridle.conf; do
     fi
 done
 
+# the lock screen, sized for the screens here (redone at every login)
+if [ $DRY = 1 ]; then say "would size the lock screen for this PC's screens"
+else "$HERE/bin/tide-lockconf" || true; fi
+
 # ---- services ----
 step "Services"
 run mkdir -p "$HOME/.config/systemd/user"
