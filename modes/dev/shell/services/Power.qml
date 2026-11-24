@@ -115,7 +115,7 @@ Singleton {
             onStreamFinished: {
                 try {
                     const d = JSON.parse(text);
-                    if (d.supported !== undefined) { root.chargeLimitSupported = d.supported; root.chargeLimit = d.limit; }
+                    if (d.supported !== undefined) { root.chargeLimitSupported = d.supported; root.chargeLimit = d.limit; root.chargeLimitWritable = !!d.writable; }
                     else if (d.error) Quickshell.execDetached(["notify-send", "-a", "Tide", "Charge limit", d.error]);
                 } catch (e) {}
             }
@@ -123,9 +123,13 @@ Singleton {
         // the password window has to be seen: Settings steps aside while it's asked
         onExited: Games.picking = false
     }
+    property bool chargeLimitWritable: false
+    // the battery forgets the limit at every start: set the kept one again at login
+    Component.onCompleted: Quickshell.execDetached([powerTool, "apply"])
     function setChargeLimit(pct) {
         if (limitProc.running) return;
-        Games.picking = true;
+        // only the first change asks for the password (then Settings steps aside for it)
+        if (!chargeLimitWritable) Games.picking = true;
         limitProc.command = [powerTool, "charge-limit", String(pct)];
         limitProc.running = true;
     }
