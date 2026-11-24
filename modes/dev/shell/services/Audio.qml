@@ -29,6 +29,7 @@ Singleton {
     readonly property var sources: Pipewire.nodes.values.filter(n => !n.isSink && !n.isStream && n.audio)
     readonly property var source: Pipewire.defaultAudioSource
     readonly property real inVolume: source && source.audio ? source.audio.volume : 0
+    readonly property bool inMuted: source && source.audio ? source.audio.muted : false
     function setInVolume(v) { if (source && source.audio) source.audio.volume = Math.max(0, Math.min(1, v)); }
     function useSource(node) { if (node) Pipewire.preferredDefaultAudioSource = node; }
     function label(n) { return n ? (n.description || n.nickname || n.name) : "None"; }
