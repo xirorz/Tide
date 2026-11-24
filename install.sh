@@ -152,7 +152,7 @@ run cp "$HERE/install/systemd/tide-awww.service" "$HOME/.config/systemd/user/tid
 run systemctl --user daemon-reload
 say "wallpaper daemon: tide-awww (started at login)"
 # SilentSDDM as the login screen
-if ! grep -qsx 'Current=silent' /etc/sddm.conf /etc/sddm.conf.d/*.conf; then
+if [ ! -f /etc/sddm.conf.d/zz-tide-theme.conf ] && ! grep -qsx 'Current=silent' /etc/sddm.conf /etc/sddm.conf.d/*.conf; then
     if [ $DRY = 1 ]; then say "would set SilentSDDM as the login screen theme"
     else printf '# Tide: SilentSDDM as the login screen (Settings → Login screen)\n[Theme]\nCurrent=silent\n' | sudo tee /etc/sddm.conf.d/zz-tide-theme.conf >/dev/null || {
              sudo mkdir -p /etc/sddm.conf.d
@@ -160,6 +160,45 @@ if ! grep -qsx 'Current=silent' /etc/sddm.conf /etc/sddm.conf.d/*.conf; then
     fi
     say "login screen theme: SilentSDDM"
 fi
+# Hyprland as the session the login screen starts: SDDM starts the last one used (its
+# state file), and an auto-login names one too; both become Hyprland. A theme set in
+# another SDDM file becomes SilentSDDM too (the last file read wins).
+SESSION=hyprland.desktop
+if [ $DRY = 1 ]; then say "would make Hyprland the login screen's session"
+else
+    sudo python3 -I - "$SESSION" "$USER" <<'PY'
+import glob, os, re, sys
+session, user = sys.argv[1:]
+def put(path, sec, key, val, only_if_set=False):
+    try: lines = open(path).read().splitlines()
+    except OSError:
+        if only_if_set: return
+        lines = []
+    cur, at, end = None, None, None
+    for i, l in enumerate(lines):
+        t = l.strip()
+        if t.startswith("[") and t.endswith("]"):
+            if cur == sec and end is None: end = i
+            cur = t[1:-1]
+        elif cur == sec and "=" in t and t.split("=", 1)[0].strip() == key: at = i
+    if at is not None: lines[at] = f"{key}={val}"
+    elif only_if_set: return
+    elif cur == sec and end is None: lines.append(f"{key}={val}")
+    elif end is not None: lines.insert(end, f"{key}={val}")
+    else: lines += [f"[{sec}]", f"{key}={val}"]
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    open(path, "w").write("\n".join(lines) + "\n")
+put("/var/lib/sddm/state.conf", "Last", "Session", "/usr/share/wayland-sessions/" + session)
+put("/var/lib/sddm/state.conf", "Last", "User", user)
+for f in ["/etc/sddm.conf"] + glob.glob("/etc/sddm.conf.d/*.conf"):
+    put(f, "Autologin", "Session", session, only_if_set=True)
+    # /etc/sddm.conf is read last: a theme named there would hide SilentSDDM
+    if not f.endswith("zz-tide-theme.conf"):
+        put(f, "Theme", "Current", "silent", only_if_set=True)
+PY
+    sudo chown sddm:sddm /var/lib/sddm/state.conf 2>/dev/null || true
+fi
+say "login screen: Hyprland is the session"
 dm=$(readlink -f /etc/systemd/system/display-manager.service 2>/dev/null || true)
 if [ "$(basename "${dm:-none}")" != sddm.service ]; then
     [ -n "$dm" ] && say "your login screen was $(basename "$dm"): switching to SDDM"
