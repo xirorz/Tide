@@ -91,7 +91,7 @@ ColumnLayout {
         SRow {
             last: true
             label: "Stop charging at"
-            sub: "Keeping it below full helps the battery last longer (asks for your password)"
+            sub: "Keeping it below full helps the battery last longer" + (Power.chargeLimitWritable ? "" : " (asks for your password the first time)")
             SSegment {
                 options: [{ label: "Full", value: 100 }, { label: "90%", value: 90 }, { label: "80%", value: 80 }, { label: "60%", value: 60 }]
                 value: Power.chargeLimit

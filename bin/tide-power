@@ -2,64 +2,103 @@
 """The laptop battery's charge limit (Settings → Power), where the battery supports one
 (/sys/class/power_supply/BAT*/charge_control_end_threshold).
 
-  tide-power charge-limit              JSON: supported, limit (percent)
-  tide-power charge-limit <percent>    set it (one password prompt): now, and at every
-                                       start through a udev rule; 100 removes the rule
+The setting belongs to the system, so the first change asks for the password once: a
+udev rule then lets this user change it, and later changes need none. The battery
+forgets it at every start; Tide keeps it (~/.local/state/tide/charge-limit) and sets it
+again at login (`tide-power apply`).
+
+  tide-power charge-limit              JSON: supported, limit (percent), writable
+  tide-power charge-limit <percent>    set it (50-100; 100 = charge to full)
+  tide-power apply                     set the kept limit again (login)
 """
 import glob, json, os, subprocess, sys
+from pathlib import Path
 
 RULE = "/etc/udev/rules.d/90-tide-charge-limit.rules"
+KEPT = Path.home() / ".local/state/tide/charge-limit"
 
 
 def files():
     return sorted(glob.glob("/sys/class/power_supply/BAT*/charge_control_end_threshold"))
 
 
-def status():
+def writable():
     fs = files()
-    limit = 100
-    if fs:
-        try:
-            limit = int(open(fs[0]).read().strip())
-        except (OSError, ValueError):
-            pass
-    print(json.dumps({"supported": bool(fs), "limit": limit}))
+    return bool(fs) and all(os.access(f, os.W_OK) for f in fs)
+
+
+def current():
+    try:
+        return int(open(files()[0]).read().strip())
+    except (OSError, ValueError, IndexError):
+        return 100
+
+
+def status():
+    print(json.dumps({"supported": bool(files()), "limit": current(), "writable": writable()}))
     return 0
+
+
+def write(pct):
+    for f in files():
+        with open(f, "w") as fh:
+            fh.write(str(pct))
 
 
 def set_limit(pct):
     if not files():
         print(json.dumps({"error": "This battery has no charge limit"}))
         return 1
-    r = subprocess.run(["pkexec", os.path.abspath(__file__), "root-set", str(pct)], capture_output=True, text=True)
-    if r.returncode != 0:
-        print(json.dumps({"error": "Not changed" if r.returncode in (126, 127) else (r.stderr.strip()[-200:] or "Couldn't change it")}))
+    pct = max(50, min(100, int(pct)))
+    if not writable():
+        # once: let this user change it from now on (one password prompt)
+        r = subprocess.run(["pkexec", os.path.abspath(__file__), "root-setup", str(os.getuid())], capture_output=True, text=True)
+        if r.returncode != 0 or not writable():
+            print(json.dumps({"error": "Not changed" if r.returncode in (126, 127) else (r.stderr.strip()[-200:] or "Couldn't change it")}))
+            return 1
+    try:
+        write(pct)
+    except OSError as e:
+        print(json.dumps({"error": f"Couldn't change it: {e.strerror}"}))
         return 1
+    KEPT.parent.mkdir(parents=True, exist_ok=True)
+    KEPT.write_text(str(pct) + "\n")
     return status()
 
 
-def root_set(pct):
+def apply():
+    try:
+        pct = int(KEPT.read_text().strip())
+    except (OSError, ValueError):
+        return 0
+    if files() and writable() and current() != pct:
+        try:
+            write(pct)
+        except OSError:
+            pass
+    return 0
+
+
+def root_setup(uid):
+    """As root (pkexec), once: the threshold files belong to this user, now and at every start."""
     if os.geteuid() != 0:
         return 1
-    pct = max(50, min(100, int(pct)))
+    uid = int(uid)
+    with open(RULE, "w") as fh:
+        fh.write("# Tide (Settings → Power): the battery's charge limit can be changed by user %d\n"
+                 'SUBSYSTEM=="power_supply", KERNEL=="BAT*", RUN+="/bin/chown %d /sys%%p/charge_control_end_threshold"\n' % (uid, uid))
     for f in files():
-        with open(f, "w") as fh:
-            fh.write(str(pct))
-    if pct >= 100:
-        if os.path.exists(RULE):
-            os.remove(RULE)
-    else:
-        with open(RULE, "w") as fh:
-            fh.write("# Tide (Settings → Power): stop charging at %d%%\n"
-                     'SUBSYSTEM=="power_supply", KERNEL=="BAT*", ATTR{charge_control_end_threshold}="%d"\n' % (pct, pct))
+        os.chown(f, uid, -1)
     return 0
 
 
 def main(a):
     if a[:1] == ["charge-limit"]:
         return set_limit(a[1]) if len(a) > 1 else status()
-    if a[:1] == ["root-set"] and len(a) > 1:
-        return root_set(a[1])
+    if a[:1] == ["apply"]:
+        return apply()
+    if a[:1] == ["root-setup"] and len(a) > 1:
+        return root_setup(a[1])
     print(__doc__, file=sys.stderr)
     return 2
 
