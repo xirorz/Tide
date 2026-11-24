@@ -68,7 +68,11 @@ Singleton {
             const due = Object.keys(root.ending).filter(k => Date.now() - root.ending[k].at >= 3000);
             if (!due.length) return;
             aliveCheck.keys = due;
-            aliveCheck.command = ["sh", "-c", due.map(k => "for p in " + root.ending[k].pids.join(" ") + "; do kill -0 $p 2>/dev/null && echo " + JSON.stringify(k).replace(/"/g, "'") + " $p; done").join("; ")];
+            // only numbers reach the shell: each argument is "<index in due>:<pid>" (a
+            // program's name can hold quotes, e.g. Wine's "Baldur's Gate 3.exe")
+            const args = [];
+            due.forEach((k, i) => root.ending[k].pids.map(Number).filter(Number.isInteger).forEach(pid => args.push(i + ":" + pid)));
+            aliveCheck.command = ["sh", "-c", 'for a; do kill -0 "${a#*:}" 2>/dev/null && echo "$a"; done', "sh"].concat(args);
             aliveCheck.running = true;
         }
     }
@@ -79,8 +83,9 @@ Singleton {
             onStreamFinished: {
                 const left = {};
                 for (const line of text.trim().split("\n").filter(x => x)) {
-                    const i = line.lastIndexOf(" ");
-                    (left[line.slice(0, i)] = left[line.slice(0, i)] || []).push(Number(line.slice(i + 1)));
+                    const [i, pid] = line.split(":").map(Number);
+                    const k = aliveCheck.keys[i];
+                    if (k !== undefined) (left[k] = left[k] || []).push(pid);
                 }
                 const s = Object.assign({}, root.stuck), e = Object.assign({}, root.ending);
                 for (const k of aliveCheck.keys) { if (left[k]) s[k] = left[k]; else delete s[k]; delete e[k]; }
