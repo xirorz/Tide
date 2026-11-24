@@ -60,9 +60,10 @@ Item {
         border.width: 1.5
         border.color: Theme.white(0.5)
     }
+    // moving: only while editing (hidden otherwise, so its hand cursor doesn't show)
     MouseArea {
         anchors.fill: parent
-        enabled: Widgets.editing
+        visible: Widgets.editing
         cursorShape: pressed ? Qt.ClosedHandCursor : Qt.OpenHandCursor
         drag.target: f
         drag.threshold: 2

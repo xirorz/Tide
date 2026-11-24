@@ -61,7 +61,11 @@ Item {
         eveWork: [660, 330, 34]
     })
     // the table is at the design's size; Appearance → Interface size scales it
-    readonly property var size: (shape === "notification" && IslandState.bannerActions ? [500, 132, 32] : sizes[shape] || sizes.idle).map(v => Theme.s(v))
+    readonly property var designSize: (shape === "notification" && IslandState.bannerActions ? [500, 132, 32] : sizes[shape] || sizes.idle).map(v => Theme.s(v))
+    // a panel bigger than the screen (a laptop) shrinks to fit, keeping its shape; its
+    // content scales with it (fit)
+    readonly property real fit: Math.min(1, (screen.width - Theme.s(48)) / designSize[0], (screen.height - Theme.s(10) - Theme.s(24)) / designSize[1])
+    readonly property var size: designSize.map(v => v * fit)
     // corner radius after Appearance → roundness (never more than half the height)
     readonly property real sizeR: Math.min(size[1] / 2, size[2] * Theme.radiusScale)
     Connections { target: Theme; function onRadiusScaleChanged() { isl.morph(); } }
@@ -425,6 +429,8 @@ Item {
                     id: resources
                     width: Theme.s(1180)
                     height: Theme.s(772)
+                    scale: isl.fit
+                    transformOrigin: Item.TopLeft
                     onCloseRequested: IslandState.close()
                 }
                 onShown: resources.reset()
