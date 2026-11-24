@@ -54,7 +54,7 @@ Item {
             }
         }
     }
-    readonly property var nav: allNav.filter(n => n.key !== "tablet" || tablets.length > 0)
+    readonly property var nav: allNav.filter(n => (n.key !== "tablet" || tablets.length > 0) && (n.key !== "power" || Power.hasBattery))
     readonly property var allNav: [
         { key: "themes", label: "Themes", icon: "M4 6 H20 V18 H4 Z M4 10 H20 M8 14 H11" },
         { key: "appearance", label: "Appearance", icon: "M12 3 A9 9 0 1 0 12 21 C13 21 13.5 20.2 13.5 19.4 C13.5 18.5 12.9 18.2 12.9 17.4 C12.9 16.5 13.6 16 14.5 16 H17 A4 4 0 0 0 21 12 C21 7 17 3 12 3 Z M7.5 11 L7.6 11 M10 7.5 L10.1 7.5 M14.5 7.5 L14.6 7.5" },
@@ -66,6 +66,7 @@ Item {
         { key: "notifications", label: "Notifications", icon: "M6 16 V11 A6 6 0 0 1 18 11 V16 L19.5 18 H4.5 Z M10 20 H14" },
         { key: "games", label: "Games", icon: "M6 10h4M8 8v4M15 11h.01M18 9h.01M7 6h10a4 4 0 014 4v4a4 4 0 01-4 4H7a4 4 0 01-4-4v-4a4 4 0 014-4z" },
         { key: "ai", label: "AI", icon: "M12 3 L13.8 7.7 L18.5 9.5 L13.8 11.3 L12 16 L10.2 11.3 L5.5 9.5 L10.2 7.7 Z M18 15 L18.8 17.2 L21 18 L18.8 18.8 L18 21 L17.2 18.8 L15 18 L17.2 17.2 Z" },
+        { key: "power", label: "Power", icon: "M7 7 H17 V18 H7 Z M10 4 H14 V7 M12 10 L10.5 13 H13.5 L12 16" },
         { key: "system", label: "System", icon: "M4 20 V10 M10 20 V4 M16 20 V13 M22 20 H2" },
         { key: "apps", label: "Apps and Hyprland", icon: "M5 5 H11 V11 H5 Z M13 5 H19 V11 H13 Z M5 13 H11 V19 H5 Z M13 13 H19 V19 H13 Z" }
     ]
@@ -139,7 +140,7 @@ Item {
             width: Math.min(flick.width - Theme.s(64), ["themes", "tablet"].indexOf(IslandState.settingsSection) >= 0 ? Theme.s(10000) : Theme.s(820))
             sourceComponent: ({
                 themes: themesC, appearance: appearanceC, keybinds: keybindsC, monitors: monitorsC,
-                tablet: tabletC, system: systemC, apps: appsC, ai: aiC, widgets: widgetsC, games: gamesC, notifications: notificationsC, login: loginC
+                tablet: tabletC, system: systemC, apps: appsC, ai: aiC, widgets: widgetsC, games: gamesC, notifications: notificationsC, power: powerC, login: loginC
             })[IslandState.settingsSection] || themesC
         }
     }
@@ -174,5 +175,6 @@ Item {
     Component { id: widgetsC; WidgetsSection {} }
     Component { id: gamesC; GamesSection {} }
     Component { id: notificationsC; NotificationsSection {} }
+    Component { id: powerC; PowerSection {} }
     Component { id: loginC; LoginScreenSection {} }
 }
