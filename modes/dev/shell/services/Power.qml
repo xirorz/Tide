@@ -111,9 +111,24 @@ Singleton {
         id: limitProc
         running: true
         command: [root.powerTool, "charge-limit"]
-        stdout: StdioCollector { onStreamFinished: { try { const d = JSON.parse(text); if (d.supported !== undefined) { root.chargeLimitSupported = d.supported; root.chargeLimit = d.limit; } } catch (e) {} } }
+        stdout: StdioCollector {
+            onStreamFinished: {
+                try {
+                    const d = JSON.parse(text);
+                    if (d.supported !== undefined) { root.chargeLimitSupported = d.supported; root.chargeLimit = d.limit; }
+                    else if (d.error) Quickshell.execDetached(["notify-send", "-a", "Tide", "Charge limit", d.error]);
+                } catch (e) {}
+            }
+        }
+        // the password window has to be seen: Settings steps aside while it's asked
+        onExited: Games.picking = false
     }
-    function setChargeLimit(pct) { limitProc.command = [powerTool, "charge-limit", String(pct)]; limitProc.running = true; }
+    function setChargeLimit(pct) {
+        if (limitProc.running) return;
+        Games.picking = true;
+        limitProc.command = [powerTool, "charge-limit", String(pct)];
+        limitProc.running = true;
+    }
 
     // ---- low battery: a warning at the level in Settings → Power, and again at 5% ----
     readonly property int warnAt: Theme.opt("batteryWarn", 20)
