@@ -51,7 +51,15 @@ Singleton {
     // Settings → Appearance → Interface size: Small (1, the design) / Medium / Large.
     // Every size in the shell goes through s() (pointSize through sf()); at Small they
     // return the value untouched, so today's look stays pixel for pixel.
-    readonly property real uiScale: opt("uiScale", 1)
+    // Appearance → Interface size: a number, or "auto" (the default): sized to the main
+    // screen, as designed from 4K, 90% at 1440p, 80% at 1080p and below (a laptop)
+    readonly property var uiScaleSetting: opt("uiScale", "auto")
+    readonly property real autoScale: {
+        const sc = Quickshell.screens.find(x => x.name === monitor) || Quickshell.screens[0];
+        const h = sc ? sc.height : 2160;
+        return h >= 2000 ? 1 : h >= 1400 ? 0.9 : 0.8;
+    }
+    readonly property real uiScale: uiScaleSetting === "auto" ? autoScale : (Number(uiScaleSetting) || 1)
     function s(px) { return uiScale === 1 ? px : Math.round(px * uiScale); }
     function sf(pt) { return pt * uiScale; }
     readonly property string sans: opt("font", "Inter")

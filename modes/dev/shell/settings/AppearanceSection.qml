@@ -130,10 +130,10 @@ ColumnLayout {
         }
         SRow {
             label: "Interface size"
-            sub: "Small is the design; Medium and Large make everything bigger"
+            sub: Theme.uiScaleSetting === "auto" ? "Auto fits it to your screen (" + Math.round(Theme.autoScale * 100) + "% here)" : "Auto fits it to your screen"
             SSegment {
-                options: [{ label: "Small", value: 1 }, { label: "Medium", value: 1.15 }, { label: "Large", value: 1.3 }]
-                value: Theme.uiScale
+                options: [{ label: "Auto", value: "auto" }, { label: "80%", value: 0.8 }, { label: "90%", value: 0.9 }, { label: "100%", value: 1 }, { label: "115%", value: 1.15 }, { label: "130%", value: 1.3 }]
+                value: Theme.uiScaleSetting
                 onPicked: v => ap.setScale(v)
             }
         }
@@ -147,6 +147,7 @@ ColumnLayout {
     // where your wallpapers are (the picker, Super+W, shows this folder)
     SCard {
         title: "Wallpapers"
+        Component.onCompleted: Wallpapers.refresh()
         SRow {
             last: true
             label: "Wallpaper folder"
