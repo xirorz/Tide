@@ -137,19 +137,13 @@ Item {
 
             // ---- at rest: time and date only ----
             HoverButton {
-                opacity: isl.shape === "idle" ? 1 : 0
                 visible: opacity > 0
                 enabled: isl.shape === "idle"
                 // leaving: grows a little and fades to black (150ms) as the island opens;
                 // coming back: fades in once the shape has settled
+                PillFade { on: isl.shape === "idle" }
                 scale: isl.shape === "idle" || Theme.reduceMotion ? 1 : 1.08
                 Behavior on scale { NumberAnimation { duration: Theme.durHide; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.standard } }
-                Behavior on opacity {
-                    SequentialAnimation {
-                        PauseAnimation { duration: isl.shape === "idle" ? Theme.durHide + Theme.delayReveal : 0 }
-                        NumberAnimation { duration: isl.shape === "idle" ? (Theme.reduceMotion ? 150 : Theme.durReveal) : Theme.durHide; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.standard }
-                    }
-                }
                 anchors.fill: parent
                 followRoundness: false
                 radius: body.radius
@@ -177,19 +171,13 @@ Item {
 
             // ---- recording: red dot + elapsed time; only the stop square ends it ----
             Item {
-                opacity: isl.shape === "recording" ? 1 : 0
                 visible: opacity > 0
                 enabled: isl.shape === "recording"
                 // leaving: grows a little and fades to black (150ms) as the island opens;
                 // coming back: fades in once the shape has settled
+                PillFade { on: isl.shape === "recording" }
                 scale: isl.shape === "recording" || Theme.reduceMotion ? 1 : 1.08
                 Behavior on scale { NumberAnimation { duration: Theme.durHide; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.standard } }
-                Behavior on opacity {
-                    SequentialAnimation {
-                        PauseAnimation { duration: isl.shape === "recording" ? Theme.durHide + Theme.delayReveal : 0 }
-                        NumberAnimation { duration: isl.shape === "recording" ? (Theme.reduceMotion ? 150 : Theme.durReveal) : Theme.durHide; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.standard }
-                    }
-                }
                 anchors.fill: parent
                 // clicking the pill opens the launcher, like the clock does (the
                 // recording keeps going; the red dot shows on the launcher)
@@ -238,9 +226,8 @@ Item {
             // shows the mode and when it ends for a few seconds ----
             Item {
                 anchors.fill: parent
-                opacity: isl.shape === "session" || isl.shape === "sessionInfo" ? 1 : 0
                 visible: opacity > 0
-                Behavior on opacity { NumberAnimation { duration: Theme.durReveal; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.standard } }
+                PillFade { on: isl.shape === "session" || isl.shape === "sessionInfo" }
                 MouseArea {
                     anchors.fill: parent
                     cursorShape: Qt.PointingHandCursor
@@ -269,8 +256,8 @@ Item {
             // ---- the emergency exit: hold Mod+Esc 5 s while locked in ----
             Item {
                 anchors.fill: parent
-                opacity: isl.shape === "sessionHold" ? 1 : 0
                 visible: opacity > 0
+                PillFade { on: isl.shape === "sessionHold" }
                 Row {
                     anchors.centerIn: parent
                     spacing: Theme.s(14)
@@ -302,19 +289,13 @@ Item {
 
             // ---- voice dictation: big mic + 5 live bars (+ time), then Transcribing…, then the result ----
             HoverButton {
-                opacity: isl.shape === "voiceRec" ? 1 : 0
                 visible: opacity > 0
                 enabled: isl.shape === "voiceRec"
                 // leaving: grows a little and fades to black (150ms) as the island opens;
                 // coming back: fades in once the shape has settled
+                PillFade { on: isl.shape === "voiceRec" }
                 scale: isl.shape === "voiceRec" || Theme.reduceMotion ? 1 : 1.08
                 Behavior on scale { NumberAnimation { duration: Theme.durHide; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.standard } }
-                Behavior on opacity {
-                    SequentialAnimation {
-                        PauseAnimation { duration: isl.shape === "voiceRec" ? Theme.durHide + Theme.delayReveal : 0 }
-                        NumberAnimation { duration: isl.shape === "voiceRec" ? (Theme.reduceMotion ? 150 : Theme.durReveal) : Theme.durHide; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.standard }
-                    }
-                }
                 anchors.fill: parent
                 followRoundness: false
                 radius: body.radius
@@ -346,31 +327,45 @@ Item {
                     }
                 }
             }
+            // Transcribing… and the result are two pills, so one fades out before the other comes in
             Item {
-                readonly property bool on: isl.shape === "voiceBusy" || isl.shape === "voiceDone"
-                opacity: on ? 1 : 0
-                visible: opacity > 0
-                Behavior on opacity {
-                    SequentialAnimation {
-                        PauseAnimation { duration: (isl.shape === "voiceBusy" || isl.shape === "voiceDone") ? Theme.durHide + Theme.delayReveal : 0 }
-                        NumberAnimation { duration: Theme.reduceMotion ? 150 : Theme.durReveal; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.standard }
-                    }
-                }
                 anchors.fill: parent
+                visible: opacity > 0
+                PillFade { on: isl.shape === "voiceBusy" }
                 Row {
                     anchors.centerIn: parent
                     spacing: Theme.s(14)
-                    VoiceBars { visible: Voice.state === "transcribing"; anchors.verticalCenter: parent.verticalCenter; live: false }
-                    Icon {
-                        visible: Voice.state !== "transcribing"
+                    VoiceBars { anchors.verticalCenter: parent.verticalCenter; live: false }
+                    Text {
                         anchors.verticalCenter: parent.verticalCenter
-                        path: Voice.state === "error" ? Icons.close : Icons.check
+                        text: "Transcribing…"
+                        color: Theme.text
+                        font.family: Theme.sans
+                        font.pixelSize: Theme.s(15)
+                        font.weight: Font.Medium
+                    }
+                }
+            }
+            Item {
+                id: voiceResult
+                anchors.fill: parent
+                visible: opacity > 0
+                PillFade { on: isl.shape === "voiceDone" }
+                // kept while it fades out (Voice goes back to idle at the same moment)
+                property bool failed: false
+                Connections { target: Voice; function onStateChanged() { if (Voice.state === "done" || Voice.state === "error") voiceResult.failed = Voice.state === "error"; } }
+                Row {
+                    anchors.centerIn: parent
+                    spacing: Theme.s(14)
+                    Icon {
+                        anchors.verticalCenter: parent.verticalCenter
+                        path: voiceResult.failed ? Icons.close : Icons.check
                         size: Theme.s(22); stroke: 2.4
-                        color: Voice.state === "error" ? Theme.red : Theme.accent
+                        color: voiceResult.failed ? Theme.red : Theme.accent
                     }
                     Text {
                         anchors.verticalCenter: parent.verticalCenter
-                        text: Voice.state === "transcribing" ? "Transcribing…" : Voice.state === "error" ? "Couldn't transcribe" : Voice.doneText
+                        text: voiceResult.failed ? "Couldn't transcribe" : Voice.doneText
                         color: Theme.text
                         font.family: Theme.sans
                         font.pixelSize: Theme.s(15)
