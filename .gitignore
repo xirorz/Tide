@@ -42,3 +42,5 @@ node_modules/
 
 # this PC's own Hyprland extras (hardware, apps, startup)
 hypr/local.lua
+# "While you're away": a local widget (services/Widgets.qml offers it only where the file is)
+modes/dev/shell/widgets/StatusWidget.qml

@@ -117,8 +117,8 @@ The Dev mode top bar and the island, built from the design canvas
   with the shell), its own `profiles.json`, and `TabletPage.qml`: the tablet drawn
   from `definitions.py`, the GIMP / Blender / Krita / Desktop profiles, click a
   control to see or change it (express keys and pen buttons; dial modes in the
-  app), and Open tablet app (the copy's window app). Nothing here reads
-  `/mnt/ai_nvme/autswitch` or `~/.config/autswitch`.
+  app), and Open tablet app (the copy's window app). It doesn't need autswitch
+  installed.
 - **Capture tools** run Tide's own copies in `shell/scripts/capture/` (screenshot,
   OCR, color picker, Pomodoro timer), and the monitor-input keys run
   `~/.config/Tide/bin/switch-monitor-input.sh`; wallpaper thumbnails are always
@@ -147,8 +147,7 @@ The Dev mode top bar and the island, built from the design canvas
 - **Desktop widgets** (Settings → Widgets, off by default): a layer under your
   windows on the screen you pick (main or another one) with the design's Clock,
   Weather (Open-Meteo, once you set a place; °F/°C), Now playing (wavy seek bar,
-  controls), Quick notes and Calendar + reminders (kept in `~/.local/state/tide/`),
-  and "While you're away" (a stub, `Widgets.status`, to fill in like EveData).
+  controls), Quick notes and Calendar + reminders (kept in `~/.local/state/tide/`).
   "Edit widgets" on the desktop: drag to move, the corner handle to resize, − to
   remove, a gallery to add; positions and sizes are saved in theme.json "widgets".
   Resizing snaps between layouts rather than shrinking text (the catalog in
@@ -156,8 +155,7 @@ The Dev mode top bar and the island, built from the design canvas
   large (small weather is just the sky; large adds five days; small Now playing is a
   pill; large has a big cover), Calendar small is a "Today" tile, System small is
   rings, 3D printer small drops temperatures and controls. The clock scales freely
-  (0.5×–3×), Quick notes within 0.8×–1.6×, and While you're away keeps its size and
-  grows down with its content. The clock has its own font
+  (0.5×–3×) and Quick notes within 0.8×–1.6×. The clock has its own font
   (Settings → Widgets). The optional System widget (from the gallery) shows CPU,
   memory, GPU, network and drives, each section switchable in Settings → Widgets.
   **Drives** are one list for the System widget, the resource center's Disk card and

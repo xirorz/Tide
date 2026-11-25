@@ -29,18 +29,23 @@ Singleton {
     property bool editing: false
 
     // the six from the design, plus optional extras; x/y are pixels from the screen's top-left, -1 = default
-    readonly property var catalog: [
+    // "While you're away" is a local add-on (widgets/StatusWidget.qml isn't shared):
+    // offered only where the file is
+    property bool hasStatus: false
+    Process { running: true; command: ["test", "-f", Quickshell.shellDir + "/widgets/StatusWidget.qml"]; onExited: code => root.hasStatus = code === 0 }
+    readonly property var catalog: baseCatalog.concat(hasStatus ? [{ type: "status", label: "While you're away", icon: "M4 17 L10 12 L4 7 M12 19 H20" }] : [])
+    readonly property var baseCatalog: [
         { type: "clock", scale: [0.5, 3], label: "Clock", icon: "M12 4 A8 8 0 1 0 12.01 4 M12 8 V12 L15 14" },
         { type: "weather", sizes: ["small", "medium", "large"], label: "Weather", icon: "M7 18 A4 4 0 0 1 7 10 A5 5 0 0 1 16.6 8.5 A3.5 3.5 0 1 1 17 18 Z" },
         { type: "nowplaying", sizes: ["small", "medium", "large"], label: "Now playing", icon: "M9 18 V6 L19 4 V16 M6.5 15.5 A2.5 2.5 0 1 0 6.51 15.5 M16.5 13.5 A2.5 2.5 0 1 0 16.51 13.5" },
         { type: "notes", box: [260, 120, 560, 520], label: "Quick notes", icon: "M6 4 H18 V20 H6 Z M9 9 H15 M9 13 H15 M9 17 H12" },
         { type: "calendar", sizes: ["small", "medium"], label: "Calendar", icon: "M5 6 H19 V20 H5 Z M5 10 H19 M9 3 V7 M15 3 V7" },
-        { type: "status", label: "While you're away", icon: "M4 17 L10 12 L4 7 M12 19 H20" },
         // optional: not in the default layout, only added from the gallery
         { type: "system", sizes: ["small", "medium"], label: "System", icon: "M4 18 A8 8 0 1 1 20 18 M12 18 L16 11", optional: true },
         { type: "printer", sizes: ["small", "medium"], label: "3D printer", icon: "M5 20h14M7 20V9h10v11M9 9V5h6v4M10 13h4", optional: true }
     ]
-    readonly property var items: cfg.items || catalog.filter(c => !c.optional).map(c => ({ type: c.type, x: -1, y: -1 }))
+    readonly property var items: (cfg.items || catalog.filter(c => !c.optional).map(c => ({ type: c.type, x: -1, y: -1 })))
+        .filter(i => catalog.some(c => c.type === i.type))
     function has(type) { return items.some(i => i.type === type); }
 
     function save(patch) { Theme.set("widgets", Object.assign({}, cfg, patch)); }
