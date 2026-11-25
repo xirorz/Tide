@@ -330,10 +330,15 @@ PanelWindow {
         }
 
         // ============ HERO ============
+        // scrolling the games moves the selected game's header up with them (and fades
+        // it), so the grid gets the room: up to where the shelf meets the top
+        readonly property real shelfTop: Math.max(gl.u(470), gl.u(120) + hero.implicitHeight + gl.u(40))
+        readonly property real lift: Math.max(0, Math.min(shelf.contentY + shelf.topMargin, shelfTop - gl.u(40)))
         ColumnLayout {
             id: hero
-            visible: gl.g !== null
-            x: gl.u(304); y: gl.u(120)
+            visible: gl.g !== null && opacity > 0
+            opacity: 1 - Math.min(1, parent.lift / gl.u(220))
+            x: gl.u(304); y: gl.u(120) - parent.lift
             width: parent.width - x - gl.u(48)
             spacing: gl.u(14)
             Row {
@@ -456,7 +461,7 @@ PanelWindow {
         // ============ SHELF ============
         ColumnLayout {
             x: gl.u(304)
-            y: Math.max(gl.u(470), hero.y + hero.implicitHeight + gl.u(40))
+            y: parent.shelfTop - parent.lift
             width: parent.width - x - gl.u(32)
             height: parent.height - y - gl.u(16)
             spacing: gl.u(12)
