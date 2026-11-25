@@ -715,7 +715,8 @@ Item {
                     }
                     HoverButton {
                         width: Theme.s(34); height: Theme.s(34)
-                        radius: EveData.listening ? Theme.s(17) : Theme.s(10)
+                        followRoundness: false
+                        radius: EveData.listening ? Theme.s(17) : Math.min(Theme.s(17), Theme.s(10) * Theme.radiusScale)
                         hoverFill: false
                         color: EveData.listening ? Theme.critical : hovered ? Theme.white(0.08) : "transparent"
                         onClicked: EveData.toggleMic()

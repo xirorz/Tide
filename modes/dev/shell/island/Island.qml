@@ -83,7 +83,9 @@ Item {
     onSizeChanged: morph()
     function morph() {
         if (body.width === size[0] && body.height === size[1] && body.radius === sizeR) { lastShape = shape; return; }
-        const hadContent = pillShapes.indexOf(lastShape) < 0;
+        // a panel's content fades before the shape moves; so does the clock (or another
+        // pill) turning into a pill, or it ghosts in the stretching shape
+        const hadContent = pillShapes.indexOf(lastShape) < 0 || pillShapes.indexOf(shape) >= 0 && lastShape !== shape;
         lastShape = shape;
         morphAnim.stop();
         if (Theme.reduceMotion) { body.width = size[0]; body.height = size[1]; body.radius = sizeR; return; }
@@ -149,7 +151,8 @@ Item {
                     }
                 }
                 anchors.fill: parent
-                radius: Theme.s(19)
+                followRoundness: false
+                radius: body.radius
                 onClicked: IslandState.open("launcher", isl.screen.name)
                 Row {
                     anchors.centerIn: parent
@@ -313,7 +316,8 @@ Item {
                     }
                 }
                 anchors.fill: parent
-                radius: Theme.s(32)
+                followRoundness: false
+                radius: body.radius
                 // like the clock and the recording pill: a click opens the launcher
                 // (dictation keeps going, the red dot shows); the stop square stops
                 onClicked: IslandState.open("launcher", isl.screen.name)
