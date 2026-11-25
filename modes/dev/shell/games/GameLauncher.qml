@@ -678,7 +678,7 @@ PanelWindow {
                             spacing: gl.u(3)
                             Text { width: gl.u(320); elide: Text.ElideRight; text: "Install " + (Games.installAsk ? Games.installAsk.game.title : "") + "?"; color: Theme.text; font.family: Theme.sans; font.pixelSize: gl.u(17); font.weight: Font.Bold }
                             Text {
-                                text: !Games.installAsk ? "" : Games.installAsk.bytes < 0 ? "Asking Steam for the size…" : Games.gb(Games.installAsk.bytes) + (Games.installAsk.free >= 0 ? " · " + Games.gb(Games.installAsk.free) + " free" : "")
+                                text: !Games.installAsk ? "" : Games.installAsk.startedSteam ? "Starting Steam…" : Games.installAsk.bytes < 0 ? "Asking Steam for the size…" : Games.gb(Games.installAsk.bytes) + (Games.installAsk.free >= 0 ? " · " + Games.gb(Games.installAsk.free) + " free" : "")
                                 color: Theme.soft; font.family: Theme.sans; font.pixelSize: gl.u(12)
                             }
                         }

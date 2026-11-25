@@ -271,7 +271,9 @@ Singleton {
         installProc.command = steamArgs.concat(["install", installAsk.game.appid]).concat(acceptLicences ? ["--accept-licences"] : []);
         installProc.running = true;
     }
-    function cancelAsk() { installAsk = null; installError = ""; }
+    function cancelAsk() { installRetry.stop(); installAsk = null; installError = ""; }
+    // Steam starting: the same question again (the size first, or the install itself)
+    Timer { id: installRetry; interval: 3000; onTriggered: if (root.installAsk && !installProc.running) installProc.running = true }
     Process {
         id: installProc
         property bool dry: true
@@ -280,12 +282,22 @@ Singleton {
                 let d;
                 try { d = JSON.parse(text); } catch (e) { root.installError = "Steam didn't answer"; return; }
                 if (d.error) {
+                    // Steam isn't running (or is still starting): start it, quietly, and ask
+                    // again every 3 s for up to two minutes, then carry on by itself
+                    if (["not-running", "not-ready", "timeout", "connection-failed"].indexOf(d.error.code) >= 0 && root.installAsk
+                            && (root.installAsk.startedSteam || 0) < 40) {
+                        if (!root.installAsk.startedSteam) Quickshell.execDetached(["steam", "-silent"]);
+                        root.installAsk = Object.assign({}, root.installAsk, { startedSteam: (root.installAsk.startedSteam || 0) + 1 });
+                        root.installError = "";
+                        installRetry.restart();
+                        return;
+                    }
                     root.installError = d.error.code === "licence-required" ? "" : d.error.message;
                     if (d.error.code === "licence-required" && root.installAsk)
                         root.installAsk = Object.assign({}, root.installAsk, { licences: d.error.licences || [] });
                     return;
                 }
-                if (installProc.dry) { root.installAsk = Object.assign({}, root.installAsk, { bytes: d.bytes_needed, free: d.bytes_free }); return; }
+                if (installProc.dry) { root.installAsk = Object.assign({}, root.installAsk, { bytes: d.bytes_needed, free: d.bytes_free, startedSteam: 0 }); return; }
                 // started: follow it in the download queue
                 const g = root.installAsk.game;
                 root.installing = Object.assign({}, root.installing, { [g.appid]: { title: g.title, percent: 0, done: 0, total: d.bytes_needed || 0, state: "Starting" } });
