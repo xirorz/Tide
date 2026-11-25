@@ -298,14 +298,47 @@ esac
 if [ -n "$desk" ]; then run xdg-settings set default-web-browser "$desk" || true; say "default browser: $BROWSER"; fi
 if [ "$BLUETOOTH" = yes ]; then run sudo systemctl enable bluetooth.service; say "Bluetooth: on (from the next start)"; fi
 if [ "$LAPTOP" = yes ] && [[ " ${EXTRA[*]} " == *" power-profiles-daemon "* ]]; then run sudo systemctl enable --now power-profiles-daemon.service; say "power modes: on"; fi
-# Tide's network controls use NetworkManager: turned on for the next start if it isn't
-# running (nothing is stopped now, so the install keeps its connection)
+# Tide's network controls use NetworkManager. Nothing is switched off without asking:
+# with iwd, NetworkManager uses iwd for Wi-Fi (iwd keeps its saved networks); with
+# systemd-networkd or dhcpcd, you're asked first (saved Wi-Fi may need entering again),
+# and --yes leaves them alone. Changes take effect from the next start, so the install
+# keeps its connection.
 if ! systemctl -q is-active NetworkManager.service 2>/dev/null; then
-    run sudo systemctl enable NetworkManager.service
-    for other in systemd-networkd.service iwd.service dhcpcd.service; do
-        systemctl -q is-enabled "$other" 2>/dev/null && run sudo systemctl disable "$other"
+    use_nm=1
+    if systemctl -q is-enabled iwd.service 2>/dev/null || systemctl -q is-active iwd.service 2>/dev/null; then
+        if [ $DRY = 1 ]; then say "would make NetworkManager use iwd for Wi-Fi (/etc/NetworkManager/conf.d/tide-iwd.conf)"
+        else
+            sudo mkdir -p /etc/NetworkManager/conf.d
+            printf '# Tide: NetworkManager uses iwd for Wi-Fi, so iwd keeps its saved networks\n[device]\nwifi.backend=iwd\n' \
+                | sudo tee /etc/NetworkManager/conf.d/tide-iwd.conf >/dev/null
+        fi
+        say "network: NetworkManager with iwd for Wi-Fi (your saved networks stay)"
+    fi
+    others=()
+    for other in systemd-networkd.service dhcpcd.service; do
+        systemctl -q is-enabled "$other" 2>/dev/null && others+=("$other")
     done
-    say "network: NetworkManager from the next start"
+    if [ ${#others[@]} -gt 0 ]; then
+        if [ $YES = 1 ]; then
+            use_nm=0
+            say "${Y}network: left as it is${R} (${others[*]} is in charge). Tide's Wi-Fi and network controls need NetworkManager; to switch:"
+            say "  sudo systemctl disable ${others[*]} && sudo systemctl enable NetworkManager  (then restart; saved Wi-Fi may need entering again)"
+        else
+            printf '\n  %sNetwork%s: this PC uses %s. Tide'"'"'s Wi-Fi and network controls need NetworkManager.\n' "$B" "$R" "${others[*]}"
+            say "Switching turns ${others[*]} off from the next start; saved Wi-Fi may need entering again."
+            read -r -p "  Switch to NetworkManager? [y/N] " yn
+            if [[ $yn == [yY]* ]]; then
+                for other in "${others[@]}"; do run sudo systemctl disable "$other"; done
+            else
+                use_nm=0
+                say "network: left as it is (Tide's network controls won't work until NetworkManager runs)"
+            fi
+        fi
+    fi
+    if [ $use_nm = 1 ]; then
+        run sudo systemctl enable NetworkManager.service
+        say "network: NetworkManager from the next start"
+    fi
 fi
 
 # ---- the Steam helper: ships prebuilt as bin/tide-steam (no Rust needed) ----

@@ -46,6 +46,8 @@ Item {
             expand = "";
             netProc.running = true;
             wifiProc.running = true;
+            savedProc.running = true;
+            pwFor = ""; pwError = "";
             forceActiveFocus();
         }
         Notifications.markSeen();
@@ -106,7 +108,7 @@ Item {
                     const f = cc.nmSplit(l);
                     if (!f[1] || seen[f[1]]) continue;
                     seen[f[1]] = true;
-                    rows.push({ name: f[1], inUse: f[0] === "*", secure: (f[2] || "") !== "" && f[2] !== "--" });
+                    rows.push({ name: f[1], inUse: f[0] === "*", security: f[2] || "", secure: (f[2] || "") !== "" && f[2] !== "--" });
                 }
                 rows.sort((a, b) => b.inUse - a.inUse);
                 cc.wifiRows = rows.slice(0, 8);
@@ -114,6 +116,53 @@ Item {
         }
     }
     Timer { interval: 5000; repeat: true; running: cc.open; onTriggered: netProc.running = true }
+    // Wi-Fi networks with a saved profile connect with one click; a secured one without
+    // opens the password box under its row (scripts/wifi-connect.sh)
+    property var savedWifi: ({})
+    Process {
+        id: savedProc
+        command: ["nmcli", "-t", "-f", "NAME,TYPE", "connection", "show"]
+        stdout: StdioCollector {
+            onStreamFinished: {
+                const s = {};
+                for (const l of text.split("\n")) { const f = cc.nmSplit(l); if (f[1] === "802-11-wireless") s[f[0]] = true; }
+                cc.savedWifi = s;
+            }
+        }
+    }
+    property string pwFor: ""           // the network whose password box is open
+    property string pwError: ""
+    property bool pwBusy: false
+    function pickWifi(row) {
+        if (row.inUse) return;
+        if (row.secure && !savedWifi[row.name]) {
+            pwError = "";
+            pwFor = pwFor === row.name ? "" : row.name;
+            return;
+        }
+        connectTo(["device", "wifi", "connect", row.name], row.name);
+    }
+    Process {
+        id: joinProc
+        property string pw: ""
+        stdinEnabled: true
+        onStarted: { write(pw + "\n"); pw = ""; }
+        stdout: StdioCollector { id: joinOut }
+        onExited: code => {
+            cc.pwBusy = false;
+            netProc.running = true; wifiProc.running = true; savedProc.running = true;
+            Net.refresh();
+            if (code === 0) { cc.pwFor = ""; cc.pwError = ""; }
+            else cc.pwError = joinOut.text.trim() || "Couldn't connect";
+        }
+    }
+    function joinWifi(row, password) {
+        if (joinProc.running || !password) return;
+        pwBusy = true; pwError = "";
+        joinProc.pw = password;
+        joinProc.command = ["bash", Quickshell.shellDir + "/scripts/wifi-connect.sh", cc.wifiDevice, row.name, row.security];
+        joinProc.running = true;
+    }
     Process {
         id: connectProc
         property string label: ""
@@ -306,16 +355,61 @@ Item {
             SectionLabel { text: "Wi-Fi networks" }
             Repeater {
                 model: cc.wifiRows
-                delegate: ListRow {
+                delegate: ColumnLayout {
+                    id: wrow
                     required property var modelData
                     readonly property bool connected: modelData.inUse
-                    rowHeight: Theme.s(42)
-                    icon: Icons.wifiArcs
-                    iconColor: connected ? Theme.text : Theme.muted
-                    title: modelData.name
-                    sub: connected ? "Connected" : modelData.secure ? "Secured" : "Open"
-                    trailing: connected ? Icons.check : modelData.secure ? Icons.lock : Icons.chevronRight
-                    onClicked: if (!connected) cc.connectTo(["device", "wifi", "connect", modelData.name], modelData.name)
+                    readonly property bool asking: cc.pwFor === modelData.name
+                    Layout.fillWidth: true
+                    spacing: Theme.s(4)
+                    ListRow {
+                        rowHeight: Theme.s(42)
+                        icon: Icons.wifiArcs
+                        iconColor: wrow.connected ? Theme.text : Theme.muted
+                        title: wrow.modelData.name
+                        sub: wrow.connected ? "Connected" : cc.savedWifi[wrow.modelData.name] ? "Saved" : wrow.modelData.secure ? "Secured" : "Open"
+                        trailing: wrow.connected ? Icons.check : wrow.modelData.secure ? Icons.lock : Icons.chevronRight
+                        onClicked: cc.pickWifi(wrow.modelData)
+                    }
+                    // the password box: Enter connects; a wrong password says so here
+                    Rectangle {
+                        visible: wrow.asking
+                        Layout.fillWidth: true
+                        Layout.leftMargin: Theme.s(8); Layout.rightMargin: Theme.s(8)
+                        implicitHeight: Theme.s(36)
+                        radius: Math.min(Theme.s(18), Theme.s(10) * Theme.radiusScale)
+                        color: Qt.rgba(0, 0, 0, 0.3)
+                        border.width: 1
+                        border.color: cc.pwError ? Theme.red : pw.activeFocus ? Theme.accent : Theme.white(0.1)
+                        TextInput {
+                            id: pw
+                            anchors.fill: parent
+                            anchors.leftMargin: Theme.s(12); anchors.rightMargin: Theme.s(84)
+                            verticalAlignment: TextInput.AlignVCenter
+                            clip: true
+                            echoMode: TextInput.Password
+                            enabled: !cc.pwBusy
+                            color: Theme.text; font.family: Theme.mono; font.pixelSize: Theme.s(12)
+                            onVisibleChanged: if (visible) { text = ""; forceActiveFocus(); }
+                            onAccepted: cc.joinWifi(wrow.modelData, text)
+                            Keys.onEscapePressed: { cc.pwFor = ""; cc.forceActiveFocus(); }
+                            Text { visible: !pw.text; anchors.verticalCenter: parent.verticalCenter; text: "Password"; color: Theme.muted; font.family: Theme.sans; font.pixelSize: Theme.s(12) }
+                        }
+                        HoverButton {
+                            anchors.right: parent.right; anchors.rightMargin: Theme.s(4)
+                            anchors.verticalCenter: parent.verticalCenter
+                            width: Theme.s(74); height: Theme.s(28); radius: Theme.s(8)
+                            color: Theme.white(0.07)
+                            onClicked: cc.joinWifi(wrow.modelData, pw.text)
+                            T { anchors.centerIn: parent; text: cc.pwBusy ? "Joining…" : "Join"; px: Theme.s(11); color: Theme.text2 }
+                        }
+                    }
+                    T {
+                        visible: wrow.asking && cc.pwError !== ""
+                        Layout.leftMargin: Theme.s(10)
+                        text: cc.pwError
+                        px: Theme.s(11); color: Theme.red
+                    }
                 }
             }
             T {
