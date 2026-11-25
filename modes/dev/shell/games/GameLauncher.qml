@@ -725,7 +725,7 @@ PanelWindow {
                         color: Theme.muted; font.family: Theme.sans; font.pixelSize: gl.u(12)
                     }
                     Text {
-                        visible: Games.artBusy || Games.artError !== ""
+                        visible: Games.artError !== "" || (Games.artBusy && !(Games.artFinding && Games.artChoices.length > 0))
                         Layout.fillWidth: true; wrapMode: Text.WordWrap
                         text: Games.artError || (!Games.artFinding ? "Saving…" : Games.artChoices.length ? "Loading more…" : "Looking on SteamGridDB…")
                         color: Games.artError ? Theme.red : Theme.soft; font.family: Theme.sans; font.pixelSize: gl.u(12.5)
@@ -735,7 +735,7 @@ PanelWindow {
                         text: "✓ " + Games.artNote + (Games.artKind === "cover" && !Games.artApplied.hero ? " · pick a banner too, or Close" : Games.artKind === "hero" && !Games.artApplied.cover ? " · pick a cover too, or Close" : "")
                         color: Theme.accent; font.family: Theme.sans; font.pixelSize: gl.u(12.5)
                     }
-                    // all of SteamGridDB's choices, 50 at a time: scroll, then Show more
+                    // all of SteamGridDB's choices, 50 at a time: scrolling down loads more
                     Flickable {
                         id: artFlick
                         visible: Games.artChoices.length > 0
@@ -745,6 +745,8 @@ PanelWindow {
                         clip: true
                         boundsBehavior: Flickable.StopAtBounds
                         WheelScroll {}
+                        // infinite scroll: near the bottom, the next 50 load by themselves
+                        onContentYChanged: if (contentY + height > contentHeight - gl.u(400)) Games.moreArt()
                     Flow {
                         id: artFlow
                         y: gl.u(2)
@@ -776,12 +778,10 @@ PanelWindow {
                             text: "From steamgriddb.com · click one to use it" + (Games.artTotal > 0 ? " · " + Games.artChoices.length + " of " + Games.artTotal : "")
                             color: Theme.muted; font.family: Theme.sans; font.pixelSize: gl.u(11.5)
                         }
-                        HoverButton {
-                            visible: Games.artMore
-                            implicitWidth: moreT.implicitWidth + gl.u(28); implicitHeight: gl.u(34); radius: gl.u(11)
-                            color: Theme.white(0.07)
-                            onClicked: Games.moreArt()
-                            Text { id: moreT; anchors.centerIn: parent; text: Games.artFinding ? "Loading…" : "Show more"; color: Theme.text2; font.family: Theme.sans; font.pixelSize: gl.u(12.5) }
+                        Text {
+                            visible: Games.artFinding && Games.artChoices.length > 0
+                            text: "Loading more…"
+                            color: Theme.soft; font.family: Theme.sans; font.pixelSize: gl.u(11.5)
                         }
                         HoverButton {
                             implicitWidth: resetT.implicitWidth + gl.u(28); implicitHeight: gl.u(34); radius: gl.u(11)
