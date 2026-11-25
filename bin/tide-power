@@ -16,6 +16,7 @@ from pathlib import Path
 
 RULE = "/etc/udev/rules.d/90-tide-charge-limit.rules"
 HELPER = "/usr/lib/tide/tide-root"
+UNIT = "/etc/systemd/system/tide-charge-limit.service"
 KEPT = Path.home() / ".local/state/tide/charge-limit"
 
 
@@ -35,8 +36,15 @@ def current():
         return 100
 
 
+def needs_setup():
+    """The password is needed: the limit isn't this user's to change yet, or it was set
+    up before the boot unit existed (once more, to add it)."""
+    return not writable() or (os.path.exists(HELPER) and not os.path.exists(UNIT))
+
+
 def status(note=None):
-    d = {"supported": bool(files()), "limit": current(), "writable": writable()}
+    # "writable": a change needs no password (Settings steps aside when it does)
+    d = {"supported": bool(files()), "limit": current(), "writable": not needs_setup()}
     if note:
         d["note"] = note
     print(json.dumps(d))
@@ -59,7 +67,7 @@ def set_limit(pct):
         print(json.dumps({"error": "The limit is a percent (50-100)"}))
         return 1
     note = None
-    if not writable():
+    if needs_setup():
         # once: let this user change it from now on (one password prompt). Tide's root
         # helper (/usr/lib/tide, put there by the installer) does it; an install from
         # before the helper falls back to this file once and says to run the installer
