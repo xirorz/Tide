@@ -67,6 +67,7 @@ Item {
                 required property var modelData
                 path: root.iconFor(modelData)
                 level: root.level(modelData)
+                charging: modelData.charging
 
                 // hover only; clicks still reach the cluster underneath
                 HoverHandler { id: devHover }
@@ -92,8 +93,8 @@ Item {
                             font.pixelSize: Theme.s(12)
                         }
                         Text {
-                            // charging: its level from before (the headset says 100% while charging)
-                            text: (dev.modelData.estimated ? "~" : "") + Math.round(root.level(dev.modelData) * 100) + "%" + (dev.modelData.charging ? " · charging" : "")
+                            // charging: "~" when the level is estimated (scripts/peripherals.py)
+                            text: dev.modelData.full ? "Charged" : (dev.modelData.estimated ? "~" : "") + Math.round(root.level(dev.modelData) * 100) + "%" + (dev.modelData.charging ? " · charging" : "")
                             color: Theme.text
                             font.family: Theme.mono
                             font.pixelSize: Theme.s(12)
