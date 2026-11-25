@@ -11,7 +11,7 @@ Singleton {
     property string screenName: ""
 
     // states that are built so far; the rest of the design's states come next
-    readonly property var built: ["idle", "launcher", "notification", "calculator", "clipboard", "capture", "power", "volume", "brightness", "eve", "wallpapers", "resources", "themes", "confirm"]
+    readonly property var built: ["idle", "launcher", "notification", "calculator", "clipboard", "capture", "power", "volume", "brightness", "eve", "wallpapers", "resources", "themes", "confirm", "cleanup"]
 
     // the control center is open (set by the bar); the island and it never show together
     property bool ccOpen: false
@@ -196,6 +196,12 @@ Singleton {
         name: "resources"
         description: "Open the resource center"
         onPressed: root.toggle("resources")
+    }
+    GlobalShortcut {
+        appid: "tide"
+        name: "cleanup"
+        description: "Free up space"
+        onPressed: root.toggle("cleanup")
     }
     GlobalShortcut {
         appid: "tide"

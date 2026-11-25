@@ -72,6 +72,7 @@ Item {
         toolRow("Calculator", "Quick math in the island", Icons.calc, "Mod+C", "calculator"),
         toolRow("Clipboard history", "Everything you copied", Icons.clip, "Mod+V", "clipboard"),
         toolRow("Resource center", "GPU, CPU, memory, disk, network and processes", Icons.gauge, "Ctrl+Shift+Esc", "resources"),
+        toolRow("Free up space", "Old packages, caches, Trash and logs", Icons.trash, "Mod+Del", "cleanup"),
         toolRow("Power menu", "Lock, suspend, log out, restart, shut down", Icons.power, "Mod+Esc", "power"),
         toolRow("Switch theme", Modes.list.map(m => m.name).join(", "), Icons.themes, "Mod+T", "themes"),
         toolRow(talkTitle, "Live mode: listening, thinking, working, speaking", Icons.eve, "Mod+Alt+E", "eve")

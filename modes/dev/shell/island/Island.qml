@@ -53,6 +53,7 @@ Item {
         confirm: [500, 120, 32],
         wallpapers: [760, 420, 28],
         resources: [1180, 772, 26],
+        cleanup: [640, 680, 28],
         // voice dictation: as big as the old whisper overlay (160x64), so it pops
         voiceRec: [240, 64, 32],
         voiceBusy: [236, 64, 32],
@@ -434,6 +435,20 @@ Item {
                     onCloseRequested: IslandState.close()
                 }
                 onShown: resources.reset()
+            }
+
+            // ---- free up space ----
+            FadeIn {
+                active: isl.shape === "cleanup"
+                CleanupPanel {
+                    id: cleanup
+                    width: Theme.s(640)
+                    height: Theme.s(680)
+                    scale: isl.fit
+                    transformOrigin: Item.TopLeft
+                    onCloseRequested: IslandState.close()
+                }
+                onShown: cleanup.reset()
             }
 
             // ---- theme picker (modes) ----

@@ -11,7 +11,7 @@ path = sys.argv[1] if len(sys.argv) > 1 else os.path.expanduser("~/.config/Tide/
 TIDE = {
     "launcher": "Open the launcher", "calculator": "Calculator", "controlcenter": "Control center",
     "clipboard": "Clipboard history", "capture": "Capture tools", "power": "Power menu",
-    "resources": "Resource center", "wallpapers": "Wallpapers", "themes": "Switch theme",
+    "resources": "Resource center", "cleanup": "Free up space", "wallpapers": "Wallpapers", "themes": "Switch theme",
     "eve": "Talk to the AI", "updates": "Updates",
 }
 KEYS = {"SUPER": "Mod", "RETURN": "Enter", "ESCAPE": "Esc", "SPACE": "Space", "mouse_down": "Wheel down",

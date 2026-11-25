@@ -1,49 +1,12 @@
 import QtQuick
 import QtQuick.Layouts
-import Quickshell
-import Quickshell.Io
 import ".."
 import "../services"
 
-// Settings → System: drives to watch (fill alerts, services/Drives.qml), free up space
-// (scripts/cleanup.py), the update center and the clipboard switches.
+// Settings → System: drives to watch (fill alerts, services/Drives.qml), the update
+// center and the clipboard switches.
 ColumnLayout {
-    id: sys
     spacing: Theme.s(18)
-
-    // ---- free up space: scripts/cleanup.py scans; "here" steps run after a second
-    // click (Sure?), "terminal" ones open in your terminal, where pacman/flatpak ask ----
-    readonly property string cleanTool: Quickshell.shellDir + "/scripts/cleanup.py"
-    property var scan: null
-    property bool scanning: false
-    property string armed: ""              // the button waiting for its second click
-    Timer { id: disarm; interval: 4000; onTriggered: sys.armed = "" }
-    function startScan() { if (scanProc.running) return; scanning = true; scanProc.running = true; }
-    Process {
-        id: scanProc
-        command: ["python3", "-I", sys.cleanTool, "scan"]
-        stdout: StdioCollector { onStreamFinished: { try { sys.scan = JSON.parse(text); } catch (e) {} sys.scanning = false; } }
-    }
-    function gb(b) { return b >= 1073741824 ? (b / 1073741824).toFixed(1) + " GB" : Math.max(1, Math.round(b / 1048576)) + " MB"; }
-    readonly property var items: scan ? scan.items.filter(i => i.bytes > 0 || i.count > 0) : []
-    readonly property real total: items.reduce((a, i) => a + i.bytes, 0) + (scan ? scan.caches.reduce((a, c) => a + c.bytes, 0) : 0)
-    function clean(id, how, cmd) {
-        if (!id) return;
-        if (how === "terminal") {
-            IslandState.closeSettings();
-            Quickshell.execDetached([Quickshell.env("HOME") + "/.config/Tide/bin/tide-term", "Free up space", "bash", "-c",
-                cmd + "; echo; read -r -s -n 1 -p 'Done. Press any key to close this window.'"]);
-            rescanSoon.restart();
-            return;
-        }
-        if (armed !== id) { armed = id; disarm.restart(); return; }
-        armed = "";
-        cleaner.command = ["python3", "-I", cleanTool, "clean", id];
-        cleaner.running = true;
-    }
-    Process { id: cleaner; onExited: sys.startScan() }
-    Timer { id: rescanSoon; interval: 15000; onTriggered: sys.startScan() }
-
     Heading { text: "System" }
 
     SCard {
@@ -89,58 +52,6 @@ ColumnLayout {
                     }
                 }
                 Rectangle { visible: dr.index < Drives.mounted.length - 1; anchors.bottom: parent.bottom; width: parent.width; height: 1; color: Theme.white(0.05) }
-            }
-        }
-    }
-
-    SCard {
-        title: "Free up space"
-        SRow {
-            last: !sys.scan
-            label: sys.scan ? "About " + sys.gb(sys.total) + " can be freed" : "See what can be freed"
-            sub: sys.scanning ? "Looking… (a few seconds)" : "Old packages, packages nothing needs, logs, Trash and app caches. Tide only removes things that are safe to remove; system ones ask first in your terminal."
-            SBtn { label: sys.scanning ? "Scanning…" : sys.scan ? "Scan again" : "Scan"; primary: !sys.scan; onClicked: sys.startScan() }
-        }
-        Repeater {
-            model: sys.items
-            delegate: SRow {
-                id: itemRow
-                required property var modelData
-                label: modelData.label + " · " + (modelData.bytes > 0 ? sys.gb(modelData.bytes) : modelData.count + (modelData.count === 1 ? " item" : " items"))
-                sub: modelData.sub
-                CleanBtn { armed: sys.armed; enabled: !cleaner.running; onClean: (w, h, c) => sys.clean(w, h, c); what: itemRow.modelData.id; how: itemRow.modelData.how; cmd: itemRow.modelData.cmd || "" }
-            }
-        }
-        Text {
-            visible: !!sys.scan && sys.scan.caches.length > 0
-            Layout.leftMargin: Theme.s(16); Layout.topMargin: Theme.s(10)
-            text: "App caches (~/.cache): apps rebuild them when needed; close an app before clearing its cache"
-            color: Theme.muted; font.family: Theme.sans; font.pixelSize: Theme.s(11.5)
-        }
-        Repeater {
-            model: sys.scan ? sys.scan.caches : []
-            delegate: SRow {
-                id: cacheRow
-                required property var modelData
-                label: modelData.name + " · " + sys.gb(modelData.bytes)
-                CleanBtn { armed: sys.armed; enabled: !cleaner.running; onClean: (w, h, c) => sys.clean(w, h, c); what: "cache:" + cacheRow.modelData.name }
-            }
-        }
-        Text {
-            visible: !!sys.scan && sys.scan.big.length > 0
-            Layout.leftMargin: Theme.s(16); Layout.topMargin: Theme.s(10)
-            text: "Biggest folders in your home: to look through yourself (Tide doesn't delete these)"
-            color: Theme.muted; font.family: Theme.sans; font.pixelSize: Theme.s(11.5)
-        }
-        Repeater {
-            model: sys.scan ? sys.scan.big : []
-            delegate: SRow {
-                id: bigRow
-                required property var modelData
-                required property int index
-                last: index === sys.scan.big.length - 1
-                label: modelData.path.replace(Quickshell.env("HOME"), "~") + " · " + sys.gb(modelData.bytes)
-                SBtn { label: "Open"; onClicked: { IslandState.closeSettings(); Quickshell.execDetached([Quickshell.env("HOME") + "/.config/Tide/bin/tide-open", "files", bigRow.modelData.path]); } }
             }
         }
     }
