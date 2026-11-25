@@ -334,6 +334,21 @@ def lutris_games():
     return out
 
 
+def chosen_art(games):
+    """Art picked in the launcher (scripts/artdb.py, ~/.local/state/tide/art.json) over
+    the game's own."""
+    try:
+        with open(os.path.expanduser("~/.local/state/tide/art.json")) as f:
+            picked = json.load(f)
+    except (OSError, ValueError):
+        return games
+    for g in games:
+        for kind, path in (picked.get(g.get("id", "")) or {}).items():
+            if kind in ("cover", "hero") and os.path.isfile(path):
+                g[kind] = path
+    return games
+
+
 def manual_games():
     """Games added by hand in Settings → Games: a program, AppImage or script, launched directly."""
     try:
@@ -456,7 +471,7 @@ if __name__ == "__main__":
         print(json.dumps(emulators_info()))
     else:
         owned, note = steam_owned()
-        print(json.dumps({"games": games() + owned + emulator_games() + lutris_games() + manual_games(), "steamRunning": steam_running(), "steamNote": note,
+        print(json.dumps({"games": chosen_art(games() + owned + emulator_games() + lutris_games() + manual_games()), "steamRunning": steam_running(), "steamNote": note,
                           "lutrisFound": os.path.isfile(f"{LUTRIS}/pga.db"),
                           "platforms": dict({k: {"name": v[0], "short": v[1]} for k, v in PLATFORMS.items()},
                                             lutris={"name": "Lutris", "short": "LUTRIS"}, pc={"name": "PC", "short": "PC"})}))

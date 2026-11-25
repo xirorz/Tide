@@ -252,6 +252,66 @@ Singleton {
         Quickshell.execDetached(["hyprctl", "dispatch", "hl.dsp.focus({ window = \"" + target + "\" })"]);
     }
 
+    // ---- art from SteamGridDB (scripts/artdb.py): right-click a game → Choose art ----
+    readonly property string artTool: Quickshell.shellDir + "/scripts/artdb.py"
+    property bool artKey: false
+    Process { id: artKeyCheck; running: true; command: ["python3", "-I", root.artTool, "has-key"]; stdout: StdioCollector { onStreamFinished: root.artKey = text.trim() === "true" } }
+    // the key goes to artdb.py on standard input (never in a command line)
+    function saveArtKey(k) { artKeyProc.pending = k; artKeyProc.running = true; }
+    Process {
+        id: artKeyProc
+        property string pending: ""
+        command: ["python3", "-I", root.artTool, "set-key"]
+        stdinEnabled: true
+        onStarted: { write(pending + "\n"); pending = ""; }
+        onExited: artKeyCheck.running = true
+    }
+    property var artGame: null              // the game whose art is being chosen
+    property string artKind: "cover"        // cover | hero
+    property var artChoices: []
+    property bool artBusy: false
+    property string artError: ""
+    function chooseArt(g, kind) {
+        artGame = g; artKind = kind || "cover"; artChoices = []; artError = ""; artBusy = true;
+        artFind.command = ["python3", "-I", artTool, "find", artKind, g.title, g.platform === "steam" ? String(g.appid || "") : ""];
+        artFind.running = true;
+    }
+    Process {
+        id: artFind
+        stdout: StdioCollector {
+            onStreamFinished: {
+                root.artBusy = false;
+                let d; try { d = JSON.parse(text); } catch (e) { root.artError = "SteamGridDB didn't answer"; return; }
+                if (d.error) { root.artError = d.error; return; }
+                root.artChoices = d;
+                if (!d.length) root.artError = "No " + (root.artKind === "cover" ? "covers" : "banners") + " for this game yet";
+            }
+        }
+    }
+    function pickArt(url) {
+        if (!artGame || artSet.running) return;
+        artBusy = true;
+        artSet.command = ["python3", "-I", artTool, "set", artGame.id, artKind, url];
+        artSet.running = true;
+    }
+    function resetArt() {
+        if (!artGame || artSet.running) return;
+        artSet.command = ["python3", "-I", artTool, "reset", artGame.id];
+        artSet.running = true;
+    }
+    Process {
+        id: artSet
+        stdout: StdioCollector {
+            onStreamFinished: {
+                root.artBusy = false;
+                let d; try { d = JSON.parse(text); } catch (e) { d = { error: "Couldn't save it" }; }
+                if (d.error) { root.artError = d.error; return; }
+                root.artGame = null;
+                root.refresh();
+            }
+        }
+    }
+
     // ---- Steam installs (bin/tide-steam: Steam's own install, no Steam window) ----
     readonly property string steamTool: Quickshell.env("HOME") + "/.config/Tide/bin/tide-steam"
     readonly property var steamArgs: [steamTool, "--state", Quickshell.env("HOME") + "/.local/state/tide/steam"]

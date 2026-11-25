@@ -85,7 +85,8 @@ PanelWindow {
     property bool confirmUninstall: false
     property string panel: ""             // "", "emulators", "edit": the emulator set-up (mouse and keyboard)
     function back() {
-        if (Games.installAsk) Games.cancelAsk();
+        if (Games.artGame) Games.artGame = null;
+        else if (Games.installAsk) Games.cancelAsk();
         else if (details) { details = false; confirmUninstall = false; }
         else if (Games.launching) Games.cancelLaunch();
         else if (panel) panel = panel === "edit" ? "emulators" : "";
@@ -496,6 +497,8 @@ PanelWindow {
                     width: shelf.cellWidth; height: shelf.cellHeight
                     HoverHandler { id: hov; cursorShape: Qt.PointingHandCursor }
                     TapHandler { onTapped: { if (gl.sel === cover.index) Games.launch(cover.modelData); else gl.sel = cover.index; } }
+                    // right-click: choose its art (SteamGridDB)
+                    TapHandler { acceptedButtons: Qt.RightButton; onTapped: { gl.sel = cover.index; Games.chooseArt(cover.modelData, "cover"); } }
                     Column {
                         x: 0; width: parent.width - gl.u(16)
                         y: hov.hovered || cover.selected ? -gl.u(4) : 0
@@ -649,6 +652,85 @@ PanelWindow {
                         }
                     }
                     Text { visible: Games.launchError !== ""; Layout.fillWidth: true; wrapMode: Text.WordWrap; text: Games.launchError + " Esc to stop waiting."; color: Theme.soft; font.family: Theme.sans; font.pixelSize: gl.u(12) }
+                }
+            }
+        }
+
+        // ============ ART (right-click a game: covers or banners from SteamGridDB) ============
+        Rectangle {
+            anchors.fill: parent
+            visible: Games.artGame !== null
+            color: Qt.rgba(0, 0, 0, 0.55)
+            MouseArea { anchors.fill: parent; onClicked: Games.artGame = null }
+            Rectangle {
+                anchors.centerIn: parent
+                width: gl.u(860); height: artCol.implicitHeight + gl.u(52); radius: gl.u(26)
+                color: Qt.rgba(24 / 255, 24 / 255, 27 / 255, 0.95)
+                border.width: 1; border.color: Theme.white(0.14)
+                MouseArea { anchors.fill: parent }
+                ColumnLayout {
+                    id: artCol
+                    x: gl.u(26); y: gl.u(26)
+                    width: parent.width - gl.u(52)
+                    spacing: gl.u(14)
+                    RowLayout {
+                        Layout.fillWidth: true
+                        Text { Layout.fillWidth: true; elide: Text.ElideRight; text: "Art for " + (Games.artGame ? Games.artGame.title : ""); color: Theme.text; font.family: Theme.sans; font.pixelSize: gl.u(17); font.weight: Font.Bold }
+                        Repeater {
+                            model: [{ k: "cover", l: "Cover" }, { k: "hero", l: "Banner" }]
+                            delegate: HoverButton {
+                                required property var modelData
+                                implicitWidth: artTab.implicitWidth + gl.u(26); implicitHeight: gl.u(30); radius: gl.u(10)
+                                hoverFill: Games.artKind !== modelData.k
+                                color: Games.artKind === modelData.k ? Theme.accent : Theme.white(0.07)
+                                onClicked: Games.chooseArt(Games.artGame, modelData.k)
+                                Text { id: artTab; anchors.centerIn: parent; text: parent.modelData.l; color: Games.artKind === parent.modelData.k ? Theme.ink : Theme.text2; font.family: Theme.sans; font.pixelSize: gl.u(12); font.weight: Font.Medium }
+                            }
+                        }
+                    }
+                    Text {
+                        visible: Games.artBusy || Games.artError !== ""
+                        Layout.fillWidth: true; wrapMode: Text.WordWrap
+                        text: Games.artError || (Games.artChoices.length ? "Saving…" : "Looking on SteamGridDB…")
+                        color: Games.artError ? Theme.red : Theme.soft; font.family: Theme.sans; font.pixelSize: gl.u(12.5)
+                    }
+                    Flow {
+                        visible: Games.artChoices.length > 0
+                        Layout.fillWidth: true
+                        spacing: gl.u(12)
+                        Repeater {
+                            model: Games.artChoices
+                            delegate: ClippingRectangle {
+                                id: pick
+                                required property var modelData
+                                readonly property bool wide: Games.artKind === "hero"
+                                width: wide ? (artCol.width - gl.u(24)) / 3 : (artCol.width - gl.u(60)) / 6
+                                height: wide ? width * 0.32 : width * 1.5
+                                radius: gl.u(12)
+                                color: "#18181B"
+                                border.width: pickHover.hovered ? 2 : 0; border.color: Theme.accent
+                                Image { anchors.fill: parent; source: pick.modelData.thumb; fillMode: Image.PreserveAspectCrop; asynchronous: true }
+                                HoverHandler { id: pickHover; cursorShape: Qt.PointingHandCursor }
+                                TapHandler { onTapped: Games.pickArt(pick.modelData.url) }
+                            }
+                        }
+                    }
+                    RowLayout {
+                        Layout.fillWidth: true
+                        Text { Layout.fillWidth: true; text: "From steamgriddb.com · click one to use it"; color: Theme.muted; font.family: Theme.sans; font.pixelSize: gl.u(11.5) }
+                        HoverButton {
+                            implicitWidth: resetT.implicitWidth + gl.u(28); implicitHeight: gl.u(34); radius: gl.u(11)
+                            color: Theme.white(0.07)
+                            onClicked: Games.resetArt()
+                            Text { id: resetT; anchors.centerIn: parent; text: "Use the game's own"; color: Theme.text2; font.family: Theme.sans; font.pixelSize: gl.u(12.5) }
+                        }
+                        HoverButton {
+                            implicitWidth: closeT.implicitWidth + gl.u(28); implicitHeight: gl.u(34); radius: gl.u(11)
+                            color: Theme.white(0.07)
+                            onClicked: Games.artGame = null
+                            Text { id: closeT; anchors.centerIn: parent; text: "Close"; color: Theme.text2; font.family: Theme.sans; font.pixelSize: gl.u(12.5) }
+                        }
+                    }
                 }
             }
         }

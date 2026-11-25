@@ -32,6 +32,15 @@ ColumnLayout {
             sub: "Steam apps that aren't games (" + Games.appCount + " installed), like Blender"
             SToggle { on: Games.showApps; onToggled: Games.setShowApps(!on) }
         }
+        SRow {
+            label: "Game art (SteamGridDB)"
+            sub: Games.artKey ? "Key saved. Right-click a game in the launcher to choose its art." : "For games without art: a free API key from steamgriddb.com (Preferences → API)"
+            SField {
+                secret: true
+                hint: Games.artKey ? "Key saved (type to replace)" : "API key"
+                onDone: v => { if (v.trim()) { Games.saveArtKey(v.trim()); text = ""; } }
+            }
+        }
         // only with the AI features on (Settings → AI): it's about the local AI's memory
         SRow {
             visible: Theme.aiEnabled
