@@ -98,7 +98,7 @@ PKGS=(
     # the compositor and the shell
     hyprland quickshell uwsm xdg-desktop-portal-hyprland hyprpolkitagent hyprlock hypridle hyprpicker
     # wallpapers and colours
-    awww mpvpaper matugen-bin ffmpeg
+    awww mpvpaper matugen ffmpeg
     # sound, media, screens, network
     pipewire pipewire-pulse wireplumber libpulse playerctl brightnessctl networkmanager
     # clipboard, capture, OCR, recording
@@ -113,7 +113,15 @@ PKGS=(
     pavucontrol
 )
 PKGS+=("${EXTRA[@]}")
-mapfile -t MISSING < <(pacman -T "${PKGS[@]}" 2>/dev/null || true)
+# missing is what nothing installed provides (matugen-bin or matugen-git count as
+# matugen); each missing one installs from the repos when they have it, else its -bin
+# build from the AUR (only these have one)
+mapfile -t NEED < <(pacman -T "${PKGS[@]}" 2>/dev/null || true)
+MISSING=()
+for p in "${NEED[@]}"; do
+    if pacman -Si "$p" >/dev/null 2>&1; then MISSING+=("$p")
+    else case $p in matugen|quickshell|awww) MISSING+=("$p-bin") ;; *) MISSING+=("$p") ;; esac; fi
+done
 if [ ${#MISSING[@]} -eq 0 ]; then
     say "everything Tide needs is installed"
 else
