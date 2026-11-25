@@ -36,11 +36,22 @@ Singleton {
     // CachyOS news next to Arch's (Settings can turn it off)
     readonly property bool cachyNews: Theme.opt("updatesCachyNews", true)
 
+    // held back (theme.json "updatesHeld": package names, Flatpak app ids): still listed,
+    // but not counted and skipped by the update (pacman/yay --ignore) until released
+    readonly property var held: Theme.opt("updatesHeld", [])
+    function key(r) { return r.id || r.name; }
+    function isHeld(r) { return held.indexOf(key(r)) >= 0; }
+    function setHeld(r, on) {
+        const h = held.filter(x => x !== key(r));
+        if (on) h.push(key(r));
+        Theme.set("updatesHeld", h);
+    }
+    readonly property int listed: ["system", "apps", "aur", "flatpak"].reduce((s, k) => s + (included(k) ? groups[k].length : 0), 0)
     function included(key) {
         return (key !== "aur" || includeAur) && (key !== "flatpak" || includeFlatpak);
     }
-    readonly property int count: ["system", "apps", "aur", "flatpak"].reduce((s, k) => s + (included(k) ? groups[k].length : 0), 0)
-    readonly property real totalMb: ["system", "apps", "aur", "flatpak"].reduce((s, k) => s + (included(k) ? groups[k].reduce((a, r) => a + r.mb, 0) : 0), 0)
+    readonly property int count: ["system", "apps", "aur", "flatpak"].reduce((s, k) => s + (included(k) ? groups[k].filter(r => !isHeld(r)).length : 0), 0)
+    readonly property real totalMb: ["system", "apps", "aur", "flatpak"].reduce((s, k) => s + (included(k) ? groups[k].reduce((a, r) => a + (isHeld(r) ? 0 : r.mb), 0) : 0), 0)
 
     function mb(n) {
         if (n <= 0) return "";
@@ -113,8 +124,8 @@ Singleton {
         let restart = false;
         for (const k of ["system", "apps", "aur", "flatpak"]) {
             if (!included(k)) continue;
-            for (const r of groups[k]) names.push(r.name);
-            if (k === "system" && groups[k].length > 0) restart = true;
+            for (const r of groups[k]) if (!isHeld(r)) names.push(r.name);
+            if (k === "system" && groups[k].some(r => !isHeld(r))) restart = true;
         }
         plannedNames = names;
         planned = names.length;
@@ -123,7 +134,7 @@ Singleton {
         runId = String(Date.now());
         seenRun = false;
         phase = "busy";
-        Quickshell.execDetached(["env", "TIDE_ACCENT=" + Theme.accentTarget, "TIDE_AUR_HELPER=" + aurHelper, termTool, "Updates",
+        Quickshell.execDetached(["env", "TIDE_ACCENT=" + Theme.accentTarget, "TIDE_AUR_HELPER=" + aurHelper, "TIDE_HELD=" + held.join(","), termTool, "Updates",
             "bash", Quickshell.shellDir + "/scripts/update-run.sh", dryRun ? "dry" : "real",
             includeAur ? "1" : "0", includeFlatpak ? "1" : "0", snapshot ? "1" : "0", runId, reviewAur ? "1" : "0"]);
         follow.restart();

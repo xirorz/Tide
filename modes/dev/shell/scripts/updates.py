@@ -87,7 +87,7 @@ def flatpak():
         f = line.split("\t")
         if len(f) < 5:
             continue
-        rows.append({"name": f[0] or f[1], "from": have.get(f[1], ""), "to": f[2], "repo": f[4], "mb": size_mb(f[3])})
+        rows.append({"name": f[0] or f[1], "id": f[1], "from": have.get(f[1], ""), "to": f[2], "repo": f[4], "mb": size_mb(f[3])})
     return rows
 
 

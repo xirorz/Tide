@@ -75,7 +75,7 @@ Item {
                 Text {
                     text: up.phase === "busy" ? "Updating"
                         : up.phase === "done" ? (Updates.failed ? "Update stopped" : "Up to date")
-                        : Updates.count === 0 ? (Updates.checking ? "Checking…" : "Up to date")
+                        : Updates.count === 0 ? (Updates.checking ? "Checking…" : Updates.listed > 0 ? "Up to date · " + Updates.listed + " held back" : "Up to date")
                         : Updates.count + (Updates.count === 1 ? " update ready" : " updates ready")
                     color: Theme.text
                     font.family: Theme.sans; font.pixelSize: Theme.type.h2[0]; font.weight: Theme.type.h2[1]
@@ -161,7 +161,7 @@ Item {
                 id: flick
                 Layout.fillWidth: true
                 Layout.preferredHeight: Math.min(Theme.s(470), groupsCol.implicitHeight)
-                visible: Updates.count > 0
+                visible: Updates.listed > 0
                 contentHeight: groupsCol.implicitHeight
                 clip: true
                 boundsBehavior: Flickable.StopAtBounds
@@ -218,7 +218,11 @@ Item {
                                     delegate: Item {
                                         id: row
                                         required property var modelData
+                                        readonly property bool held: Updates.isHeld(modelData)
                                         width: grpCol.width; height: Theme.s(34)
+                                        opacity: held ? 0.55 : 1
+                                        // hover: Hold (skip it until you release it) / Release
+                                        HoverHandler { id: rowHover }
                                         Rectangle { width: parent.width; height: 1; color: Theme.white(0.05) }
                                         // name + repo | from → to | size (64px)
                                         Text {
@@ -246,8 +250,24 @@ Item {
                                             anchors.verticalCenter: parent.verticalCenter
                                             width: Theme.s(64)
                                             horizontalAlignment: Text.AlignRight
+                                            visible: !rowHover.hovered && !row.held
                                             text: Updates.mb(row.modelData.mb)
                                             color: Theme.muted; font.family: Theme.mono; font.pixelSize: Theme.s(11)
+                                        }
+                                        HoverButton {
+                                            visible: rowHover.hovered || row.held
+                                            enabled: Updates.phase !== "busy"
+                                            anchors.right: parent.right; anchors.rightMargin: Theme.s(8)
+                                            anchors.verticalCenter: parent.verticalCenter
+                                            width: Theme.s(68); height: Theme.s(24); radius: Theme.s(8)
+                                            color: row.held ? Theme.accentSoft : Theme.white(0.07)
+                                            onClicked: Updates.setHeld(row.modelData, !row.held)
+                                            Text {
+                                                anchors.centerIn: parent
+                                                text: row.held ? (rowHover.hovered ? "Release" : "Held") : "Hold"
+                                                color: row.held ? Theme.accent : Theme.text2
+                                                font.family: Theme.sans; font.pixelSize: Theme.s(11); font.weight: Font.Medium
+                                            }
                                         }
                                     }
                                 }

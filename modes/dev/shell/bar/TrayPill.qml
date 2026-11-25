@@ -14,7 +14,7 @@ Pill {
     id: root
     padH: Theme.s(8)
     spacing: Theme.s(2)
-    visible: SystemTray.items.values.length > 0 || Updates.count > 0 || Updates.phase !== "list"
+    visible: SystemTray.items.values.length > 0 || Updates.listed > 0 || Updates.phase !== "list"
     property bool panelOpen: false
     signal toggled()
 
@@ -59,7 +59,8 @@ Pill {
     // the updates count: opens the updates panel (its only way in). While updating it
     // shows a spinner and the percent, then a check mark until the panel is closed.
     HoverButton {
-        visible: Updates.count > 0 || Updates.phase !== "list"
+        // also with only held-back packages (no number), so they can be released
+        visible: Updates.listed > 0 || Updates.phase !== "list"
         Layout.preferredHeight: Theme.s(28)
         Layout.preferredWidth: upRow.implicitWidth + Theme.s(18)
         radius: Theme.s(14)
@@ -100,7 +101,7 @@ Pill {
             }
             Icon { visible: Updates.phase !== "busy"; path: Updates.phase === "done" ? Icons.check : Icons.updates; anchors.verticalCenter: parent.verticalCenter }
             Text {
-                visible: Updates.phase !== "done"
+                visible: Updates.phase !== "done" && (Updates.phase === "busy" || Updates.count > 0)
                 anchors.verticalCenter: parent.verticalCenter
                 text: Updates.phase === "busy" ? Updates.pct + "%" : Updates.count
                 color: Theme.text

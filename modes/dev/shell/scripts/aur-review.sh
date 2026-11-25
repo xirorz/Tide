@@ -24,6 +24,8 @@ case $helper in
     yay) run=(yay -Sua --answerdiff None --answeredit None) ;;
     paru) run=(paru -Sua --skipreview) ;;
 esac
+# held back in the update panel
+[ -n "${TIDE_HELD:-}" ] && run+=(--ignore "$TIDE_HELD")
 go() {
     if [ "$mode" = dry ]; then echo ":: rehearsal: ${run[*]} would run now"; exit 0; fi
     exec "${run[@]}"
@@ -31,7 +33,7 @@ go() {
 
 [ "$review" = 1 ] || go
 
-mapfile -t pkgs < <("$helper" -Qua -q 2>/dev/null)
+mapfile -t pkgs < <("$helper" -Qua -q 2>/dev/null | grep -vxF -f <(tr ',' '\n' <<< "${TIDE_HELD:-}") )
 if [ ${#pkgs[@]} -eq 0 ]; then
     echo "${D}No AUR updates.${R}"
     exit 0

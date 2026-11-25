@@ -7,6 +7,10 @@
 # real tty, so its questions still work). Lines starting with "::tide::" are markers
 # the updates panel follows: run <id>, step <name>, rc <step> <code>, end <seconds>.
 mode=$1 aur=$2 flat=$3 snap=$4 id=$5 review=${6:-1}
+# held back in the panel (comma-separated names): skipped, and said so
+held=${TIDE_HELD:-}
+held=${held//[^A-Za-z0-9@._+,-]/}
+export TIDE_HELD=$held
 here=$(dirname "$(readlink -f "$0")")
 DIR="${XDG_RUNTIME_DIR:-/tmp}/tide-updates"
 mkdir -p "$DIR"
@@ -69,10 +73,19 @@ EOF
     rm -f "$fake"
 else
     # snap-pac takes the before/after snapshots; SNAP_PAC_SKIP turns that off
-    if [ "$snap" = 1 ]; then step pacman "sudo pacman -Syu"; else step pacman "sudo env SNAP_PAC_SKIP=y pacman -Syu"; fi
+    [ -n "$held" ] && printf '%sHeld back (not updated): %s%s\n' "$D" "${held//,/, }" "$R"
+    ign=""; [ -n "$held" ] && ign=" --ignore $held"
+    if [ "$snap" = 1 ]; then step pacman "sudo pacman -Syu$ign"; else step pacman "sudo env SNAP_PAC_SKIP=y pacman -Syu$ign"; fi
     ok=$?
     [ $ok = 0 ] && [ "$aur" = 1 ] && step aur "bash '$here/aur-review.sh' real $review"
-    [ $ok = 0 ] && [ "$flat" = 1 ] && step flatpak "flatpak update -y"
+    if [ $ok = 0 ] && [ "$flat" = 1 ]; then
+        if [ -z "$held" ]; then step flatpak "flatpak update -y"
+        else
+            # every app with an update except the held ones (nothing left: skipped)
+            apps=$(flatpak remote-ls --updates --columns=application 2>/dev/null | grep -vxF -f <(tr ',' '\n' <<< "$held") | tr '\n' ' ')
+            [ -n "${apps// /}" ] && step flatpak "flatpak update -y $apps"
+        fi
+    fi
 fi
 
 finish
