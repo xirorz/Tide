@@ -127,10 +127,15 @@ ColumnLayout {
                 Text { id: startT; anchors.centerIn: parent; text: "Start"; color: Theme.ink; font.family: Theme.sans; font.pixelSize: Theme.s(12); font.weight: Font.DemiBold }
             }
         }
-        SRow { label: "Dim the screen after"; SDropdown { mono: false; options: ap.minutes; value: Idle.timings.dim; onPicked: v => Idle.set("dim", v) } }
-        SRow { label: "Lock after"; SDropdown { mono: false; options: ap.minutes; value: Idle.timings.lock; onPicked: v => Idle.set("lock", v) } }
-        SRow { label: "Turn screens off after"; SDropdown { mono: false; options: ap.minutes; value: Idle.timings.dpms; onPicked: v => Idle.set("dpms", v) } }
-        SRow { label: "Suspend after"; SDropdown { mono: false; options: ap.minutes; value: Idle.timings.suspend; onPicked: v => Idle.set("suspend", v) } }
+        SRow {
+            visible: Power.batteryIdleActive
+            label: "On battery: these are the battery's times"
+            sub: "Changes here are for battery only. The plugged-in times come back when you plug in (Settings → Power)."
+        }
+        SRow { label: "Dim the screen after"; SDropdown { mono: false; options: ap.minutes; value: Idle.timings.dim; onPicked: v => Power.setIdle("dim", v) } }
+        SRow { label: "Lock after"; SDropdown { mono: false; options: ap.minutes; value: Idle.timings.lock; onPicked: v => Power.setIdle("lock", v) } }
+        SRow { label: "Turn screens off after"; SDropdown { mono: false; options: ap.minutes; value: Idle.timings.dpms; onPicked: v => Power.setIdle("dpms", v) } }
+        SRow { label: "Suspend after"; SDropdown { mono: false; options: ap.minutes; value: Idle.timings.suspend; onPicked: v => Power.setIdle("suspend", v) } }
         // keep-awake rules (services/Idle.qml)
         SRow {
             label: "Games and full-screen video always keep the screen on"
