@@ -47,6 +47,29 @@ Item {
     }
 
     readonly property var active: ToplevelManager.activeToplevel
+    // the focused window: the app's own name (from its desktop entry: "Claude", not
+    // "com.anthropic.claude"), then what the window shows, without the app's name
+    // repeated at its end ("YouTube — Mozilla Firefox" -> "Firefox · YouTube")
+    readonly property string appName: {
+        const id = active ? active.appId || "" : "";
+        if (!id) return "";
+        const e = DesktopEntries.heuristicLookup(id);
+        if (e && e.name) return e.name;
+        const last = id.split(".").pop().replace(/[-_]/g, " ");
+        return last.charAt(0).toUpperCase() + last.slice(1);
+    }
+    readonly property string windowLabel: {
+        if (!active) return "";
+        let t = (active.title || "").trim();
+        const n = appName, low = n.toLowerCase();
+        if (n) {
+            // "page — Mozilla Firefox", "file - Visual Studio Code": the tail names the app
+            const m = t.match(/^(.*\S)\s+[—–-]\s+([^—–-]+)$/);
+            if (m && (m[2].toLowerCase().indexOf(low) >= 0 || low.indexOf(m[2].toLowerCase()) >= 0)) t = m[1];
+            if (t.toLowerCase() === low) t = "";
+        }
+        return n ? (t ? n + " · " + t : n) : t;
+    }
     readonly property bool aiOpen: EveData.open
 
     RowLayout {
@@ -64,7 +87,7 @@ Item {
             Text {
                 Layout.maximumWidth: Theme.s(420)
                 elide: Text.ElideRight
-                text: bar.active ? (bar.active.appId ? bar.active.appId + " — " + bar.active.title : bar.active.title) : ""
+                text: bar.windowLabel
                 color: Theme.text2
                 font.family: Theme.sans
                 font.pixelSize: Theme.s(12)
