@@ -44,3 +44,5 @@ node_modules/
 hypr/local.lua
 # "While you're away": a local widget (services/Widgets.qml offers it only where the file is)
 modes/dev/shell/widgets/StatusWidget.qml
+# tablet plugins are your own (none ship with Tide)
+plugins/

@@ -111,14 +111,8 @@ The Dev mode top bar and the island, built from the design canvas
   `~/.config/Tide/plugins/<name>/` with a `plugin.json` (name, USB ids to match, a
   Settings page, a background daemon command, its app). `scripts/tablets.py` +
   `services/Tablets.qml` check every 3 s and run a plugin's daemon only while its
-  tablet is plugged in (and not while its own app is open). First plugin:
-  **Kamvas 13 Gen 3** — Tide's own copy of the autswitch remapper (`engine/`, with
-  a headless `main.py --daemon` that reloads `profiles.json` on change and exits
-  with the shell), its own `profiles.json`, and `TabletPage.qml`: the tablet drawn
-  from `definitions.py`, the GIMP / Blender / Krita / Desktop profiles, click a
-  control to see or change it (express keys and pen buttons; dial modes in the
-  app), and Open tablet app (the copy's window app). It doesn't need autswitch
-  installed.
+  tablet is plugged in (and not while its own app is open). Plugins are your own:
+  none ship with Tide.
 - **Capture tools** run Tide's own copies in `shell/scripts/capture/` (screenshot,
   OCR, color picker, Pomodoro timer), and the monitor-input keys run
   `~/.config/Tide/bin/switch-monitor-input.sh`; wallpaper thumbnails are always
