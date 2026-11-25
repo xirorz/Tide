@@ -74,6 +74,8 @@ mkdir -p "$(dirname "$recent")"
 mat_from="$colors_from"
 [[ -s "$thumb" ]] && mat_from="$thumb"
 "$(dirname "$0")/matugen.sh" image -c "$HOME/.config/Tide/colors/matugen.toml" "$mat_from"
+# tinted apps follow the new colours (only while Tinted is on for apps)
+"$HOME/.config/Tide/bin/tide-apptint" refresh >/dev/null 2>&1 &
 # then your own matugen setup (other apps' themes), if you have one, without waiting
 if [[ -f "$HOME/.config/matugen/config.toml" ]]; then
     "$(dirname "$0")/matugen.sh" image "$colors_from" >/dev/null 2>&1 &

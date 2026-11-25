@@ -33,7 +33,9 @@ ColumnLayout {
     }
     function setAppsDark(on) {
         appsDark = on;
-        Quickshell.execDetached(["gsettings", "set", "org.gnome.desktop.interface", "color-scheme", on ? "prefer-dark" : "default"]);
+        // and Tinted for apps follows (bin/tide-apptint)
+        Quickshell.execDetached(["sh", "-c", "gsettings set org.gnome.desktop.interface color-scheme " + (on ? "prefer-dark" : "default")
+            + "; \"$HOME/.config/Tide/bin/tide-apptint\" follow"]);
     }
 
     Heading { text: "Appearance" }
@@ -41,7 +43,7 @@ ColumnLayout {
     SCard {
         SRow {
             label: "Surface"
-            sub: "Tinted is dark and solid, in your wallpaper's own colours"
+            sub: "Tinted is dark and solid, in your wallpaper's own colours (your apps too, with the dark theme for all apps on)"
             SSegment {
                 options: [{ label: "Dark", value: "dark" }, { label: "Glass", value: "glass" }, { label: "Tinted", value: "tinted" }]
                 value: Theme.surface === "glass" || Theme.surface === "tinted" ? Theme.surface : "dark"

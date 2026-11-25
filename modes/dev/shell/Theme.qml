@@ -168,7 +168,11 @@ Singleton {
     readonly property color tile: surface === "glass" ? white(0.08) : tileFill   // the sheet's tile
 
     // the control center's Dark/Glass/Tinted switch writes "surface" back to theme.json
-    function setSurface(v) { set("surface", v); }
+    function setSurface(v) {
+        set("surface", v);
+        // Tinted reaches GTK and Qt apps too while they're set to dark (bin/tide-apptint)
+        Quickshell.execDetached([Quickshell.env("HOME") + "/.config/Tide/bin/tide-apptint", "follow"]);
+    }
     // write one setting back to theme.json (and apply it now; the file watcher
     // doesn't report our own write)
     function set(key, value) {
