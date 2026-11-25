@@ -99,6 +99,8 @@ PKGS=(
     wl-clipboard cliphist grim slurp tesseract tesseract-data-eng gpu-screen-recorder
     # Tide's tools
     python libnotify zenity pacman-contrib curl polkit xdg-utils
+    # the terminal greeting (bin/tide-greet)
+    fastfetch
     # the login screen (SilentSDDM by uiriansan) and the lock screen's font
     sddm sddm-silent-theme ttf-iosevka-nerd
     # the volume app the control center opens
@@ -240,6 +242,10 @@ fi
 [ -f "$HERE/mode" ] || { if [ $DRY = 1 ]; then say "would set the mode to dev"; else echo dev > "$HERE/mode"; fi; }
 run mkdir -p "$HOME/wallpapers"
 say "wallpapers go in ~/wallpapers (Super+W)"
+# the terminal greeting (Settings → Appearance → Terminal): Tide's wave, one line in
+# your shell's startup file
+if [ $DRY = 1 ]; then say "would add Tide's terminal greeting to your shell's startup"
+else "$HERE/bin/tide-greet" install >/dev/null; say "terminal greeting: Tide's wave (Settings → Appearance)"; fi
 
 # ---- your choices as Tide's defaults ----
 step "Your apps"

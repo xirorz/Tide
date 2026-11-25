@@ -1,0 +1,98 @@
+#!/usr/bin/env bash
+# What a terminal shows when it opens (Settings → Appearance → Terminal greeting).
+# The choice is "terminalGreeting" in ~/.config/Tide/modes/dev/theme.json:
+#   tide       the breaking wave, in the wallpaper's colors (the default)
+#   pokemon    a random Pokémon (pokemon-colorscripts, installed when picked)
+#   distro     the distro's own logo (plain fastfetch)
+#   minimal    one line: the time and how long the computer has been on
+#   off        nothing
+#
+#   tide-greet                 show it (the shell runs this at startup)
+#   tide-greet tide|pokemon|…  show that one (Settings' preview)
+#   tide-greet install         add the one startup line to your shell (fish, bash, zsh)
+#   tide-greet uninstall       take it out again
+TIDE="$HOME/.config/Tide"
+conf="$TIDE/modes/dev/theme.json"
+MARK="# Tide: terminal greeting (Settings → Appearance)"
+
+# the startup line in each shell's config; fish's replaces its greeting function
+# (CachyOS's config.fish defines one that runs fastfetch)
+install_hook() {
+    local shells="" f
+    for s in fish bash zsh; do command -v "$s" >/dev/null && shells="$shells $s"; done
+    for s in $shells; do
+        case $s in
+            fish) f="$HOME/.config/fish/config.fish"
+                  line="function fish_greeting; test -x $TIDE/bin/tide-greet; and $TIDE/bin/tide-greet; end" ;;
+            bash) f="$HOME/.bashrc"
+                  line="[[ \$- == *i* && -x $TIDE/bin/tide-greet ]] && $TIDE/bin/tide-greet" ;;
+            zsh)  f="$HOME/.zshrc"
+                  line="[[ -o interactive && -x $TIDE/bin/tide-greet ]] && $TIDE/bin/tide-greet" ;;
+        esac
+        # only shells you actually use: an existing config, or your login shell
+        [[ -f "$f" || "$(basename "${SHELL:-}")" == "$s" ]] || continue
+        grep -qF "$MARK" "$f" 2>/dev/null && continue
+        mkdir -p "$(dirname "$f")"
+        printf '\n%s\n%s\n' "$MARK" "$line" >> "$f"
+        echo "tide-greet: added to $f"
+    done
+}
+uninstall_hook() {
+    for f in "$HOME/.config/fish/config.fish" "$HOME/.bashrc" "$HOME/.zshrc"; do
+        [[ -f "$f" ]] && grep -qF "$MARK" "$f" || continue
+        # the mark, the line after it, and the blank line before it
+        awk -v m="$MARK" '{ l[NR] = $0 } $0 == m { drop[NR] = drop[NR + 1] = 1; if (NR > 1 && l[NR - 1] == "") drop[NR - 1] = 1 }
+            END { for (i = 1; i <= NR; i++) if (!drop[i]) print l[i] }' "$f" > "$f.tide-tmp" && mv "$f.tide-tmp" "$f"
+        echo "tide-greet: removed from $f"
+    done
+}
+
+# a color from Tide's wallpaper colors (colors/colors.css)
+css() { sed -n "s/^ *--$1: *\(#[0-9a-fA-F]\{6\}\);.*/\1/p" "$TIDE/colors/colors.css" 2>/dev/null | head -1; }
+# a mix of two #rrggbb colors: mix a b t  (t = how much of b)
+mix() {
+    local a=${1#\#} b=${2#\#} t=$3
+    awk -v a="$a" -v b="$b" -v t="$t" 'function h(s){return index("0123456789abcdef",tolower(s))-1}
+        function v(s,i){return h(substr(s,i,1))*16+h(substr(s,i+1,1))}
+        BEGIN{printf "#%02x%02x%02x", v(a,1)+(v(b,1)-v(a,1))*t, v(a,3)+(v(b,3)-v(a,3))*t, v(a,5)+(v(b,5)-v(a,5))*t}'
+}
+
+show_tide() {
+    local p bg
+    p=$(css primary); p=${p:-#3c8ce0}
+    bg=$(css background); bg=${bg:-#101010}
+    # the crest light, the wave in the accent, deeper water darker
+    # exec: fastfetch takes this script's place, so it sees your shell (not bash) as its parent
+    exec fastfetch -c "$TIDE/install/fastfetch/tide.jsonc" --logo "$TIDE/install/fastfetch/tide-wave.txt" \
+        --logo-color-4 "$(mix "$p" "#ffffff" 0.45)" --logo-color-1 "$p" \
+        --logo-color-2 "$(mix "$p" "$bg" 0.3)" --logo-color-3 "$(mix "$p" "$bg" 0.55)" \
+        --color-keys "$p" --color-title "$p"
+}
+show_minimal() {
+    local p up
+    p=$(css primary); p=${p:-#3c8ce0}
+    up=$(uptime -p 2>/dev/null | sed 's/^up //')
+    printf '\e[38;2;%d;%d;%dm≈\e[0m \e[1mtide\e[0m \e[2m·\e[0m %s \e[2m·\e[0m up %s\n' \
+        "0x${p:1:2}" "0x${p:3:2}" "0x${p:5:2}" "$(date '+%a %-I:%M %p')" "$up"
+}
+
+show() {
+    case "$1" in
+        off) ;;
+        minimal) show_minimal ;;
+        distro) exec fastfetch ;;
+        pokemon)
+            if command -v pokemon-colorscripts >/dev/null; then pokemon-colorscripts -r --no-title; echo
+            else show_tide; fi ;;
+        *) show_tide ;;
+    esac
+}
+
+case "${1:-}" in
+    install) install_hook ;;
+    uninstall) uninstall_hook ;;
+    tide|pokemon|distro|minimal|off) show "$1" ;;
+    "") choice=$(sed -n 's/.*"terminalGreeting": *"\([a-z]*\)".*/\1/p' "$conf" 2>/dev/null | head -1)
+        show "${choice:-tide}" ;;
+    *) sed -n '2,13s/^# \{0,1\}//p' "$0" >&2; exit 2 ;;
+esac
