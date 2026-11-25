@@ -5,7 +5,7 @@ import Quickshell.Io
 
 // Wireless device batteries for the control cluster (scripts/peripherals.py reads the
 // kernel every 2 seconds, so a device shows up right after it connects).
-// Each: { id, kind: headset|mouse|controller|keyboard|phone, model, percent, charging }
+// Each: { id, kind: headset|mouse|controller|keyboard|phone, model, percent, charging, full, estimated }
 Singleton {
     id: root
     property var devices: []
