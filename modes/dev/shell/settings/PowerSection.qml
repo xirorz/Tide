@@ -93,7 +93,12 @@ ColumnLayout {
             label: "Stop charging at"
             sub: "Keeping it below full helps the battery last longer" + (Power.chargeLimitWritable ? "" : " (asks for your password the first time)")
             SSegment {
-                options: [{ label: "Full", value: 100 }, { label: "90%", value: 90 }, { label: "80%", value: 80 }, { label: "60%", value: 60 }]
+                // a limit set elsewhere (the firmware's 85%) shows as its own choice, so one is lit
+                options: {
+                    const o = [{ label: "Full", value: 100 }, { label: "90%", value: 90 }, { label: "80%", value: 80 }, { label: "60%", value: 60 }];
+                    if (o.every(x => x.value !== Power.chargeLimit)) o.push({ label: Power.chargeLimit + "%", value: Power.chargeLimit });
+                    return o.sort((a, b) => b.value - a.value);
+                }
                 value: Power.chargeLimit
                 onPicked: v => Power.setChargeLimit(v)
             }
