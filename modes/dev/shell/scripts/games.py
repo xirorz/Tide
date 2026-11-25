@@ -335,8 +335,8 @@ def lutris_games():
 
 
 def chosen_art(games):
-    """Art and names picked in the launcher (scripts/artdb.py, ~/.local/state/tide/art.json)
-    over the game's own."""
+    """Art picked in the launcher (scripts/artdb.py, ~/.local/state/tide/art.json) over
+    the game's own."""
     try:
         with open(os.path.expanduser("~/.local/state/tide/art.json")) as f:
             picked = json.load(f)
@@ -346,8 +346,6 @@ def chosen_art(games):
         for kind, v in (picked.get(g.get("id", "")) or {}).items():
             if kind in ("cover", "hero") and os.path.isfile(v):
                 g[kind] = v
-            elif kind == "title" and v:
-                g["title"] = v
     return games
 
 

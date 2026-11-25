@@ -11,7 +11,6 @@
 #                                        {match: the game SteamGridDB found, items:
 #                                        up to 12 [{thumb, url}]}; kind: cover (600x900)
 #                                        | hero (wide banner); adult: 1 includes adult art
-#   artdb.py name <game id> <title>      show the game under this name ("" = its own)
 #   artdb.py set <game id> <kind> <url>  download it and use it for that game
 #   artdb.py reset <game id>             back to the game's own art
 import hashlib, json, os, sys, urllib.parse, urllib.request
@@ -58,7 +57,7 @@ def find(kind, title, appid="", adult=False):
         if not d or not d.get("data"):
             s = get("/search/autocomplete/" + urllib.parse.quote(title, safe=""))
             if not s.get("data"):
-                return out({"error": f"SteamGridDB doesn't know \"{title}\". Try another name (rename it above)."})
+                return out({"error": f"SteamGridDB doesn't know \"{title}\". Try another name above."})
             match = s["data"][0].get("name", "")
             d = get(f"/{what}/game/{s['data'][0]['id']}{q}")
     except urllib.error.HTTPError as e:
@@ -105,21 +104,8 @@ def set_art(gid, kind, url):
     out({"ok": True, "path": str(dest)})
 
 
-def name(gid, title):
-    c = chosen()
-    title = title.strip()[:120]
-    if title:
-        c.setdefault(gid, {})["title"] = title
-    elif gid in c:
-        c[gid].pop("title", None)
-        if not c[gid]:
-            del c[gid]
-    save(c)
-    out({"ok": True})
-
-
 def reset(gid):
-    """Back to the game's own art (a new name stays)."""
+    """Back to the game's own art."""
     c = chosen()
     g = c.get(gid, {})
     for kind in ("cover", "hero"):
@@ -150,8 +136,6 @@ def main(a):
         return out({"ok": True})
     if a[:1] == ["find"] and len(a) >= 3 and a[1] in ("cover", "hero"):
         return find(a[1], a[2], a[3] if len(a) > 3 else "", len(a) > 4 and a[4] == "1")
-    if a[:1] == ["name"] and len(a) == 3:
-        return name(a[1], a[2])
     if a[:1] == ["set"] and len(a) == 4 and a[2] in ("cover", "hero"):
         return set_art(a[1], a[2], a[3])
     if a[:1] == ["reset"] and len(a) == 2:

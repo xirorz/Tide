@@ -276,9 +276,15 @@ Singleton {
     function setArtAdult(on) { artAdult = on; saveState(); }
     property bool artBusy: false
     property string artError: ""
-    function chooseArt(g, kind) {
+    // what SteamGridDB is searched for: the game's name, or what you typed in the picker
+    // (the game keeps its own name; a typed search skips the Steam id match)
+    property string artSearch: ""
+    function chooseArt(g, kind, search) {
+        if (g !== artGame) artSearch = "";
+        if (search !== undefined) artSearch = search.trim() === g.title ? "" : search.trim();
         artGame = g; artKind = kind || "cover"; artChoices = []; artMatch = ""; artError = ""; artBusy = true;
-        artFind.command = ["python3", "-I", artTool, "find", artKind, g.title, g.platform === "steam" ? String(g.appid || "") : "", artAdult ? "1" : "0"];
+        artFind.command = ["python3", "-I", artTool, "find", artKind, artSearch || g.title,
+            g.platform === "steam" && !artSearch ? String(g.appid || "") : "", artAdult ? "1" : "0"];
         artFind.running = true;
     }
     Process {
@@ -299,24 +305,6 @@ Singleton {
         artBusy = true;
         artSet.command = ["python3", "-I", artTool, "set", artGame.id, artKind, url];
         artSet.running = true;
-    }
-    // a better name for a game (emulator files often have odd ones): shown everywhere,
-    // and the art search uses it
-    function renameGame(title) {
-        if (!artGame || artName.running) return;
-        artName.title = title.trim();
-        artName.command = ["python3", "-I", artTool, "name", artGame.id, artName.title];
-        artName.running = true;
-    }
-    Process {
-        id: artName
-        property string title: ""
-        onExited: code => {
-            if (code !== 0 || !root.artGame) return;
-            const g = Object.assign({}, root.artGame, { title: artName.title || root.artGame.title });
-            root.refresh();
-            root.chooseArt(g, root.artKind);
-        }
     }
     function resetArt() {
         if (!artGame || artSet.running) return;

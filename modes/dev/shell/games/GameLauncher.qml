@@ -683,12 +683,13 @@ PanelWindow {
                                 implicitWidth: artTab.implicitWidth + gl.u(26); implicitHeight: gl.u(30); radius: gl.u(10)
                                 hoverFill: Games.artKind !== modelData.k
                                 color: Games.artKind === modelData.k ? Theme.accent : Theme.white(0.07)
-                                onClicked: Games.chooseArt(Games.artGame, modelData.k)
+                                onClicked: Games.chooseArt(Games.artGame, modelData.k, Games.artSearch)
                                 Text { id: artTab; anchors.centerIn: parent; text: parent.modelData.l; color: Games.artKind === parent.modelData.k ? Theme.ink : Theme.text2; font.family: Theme.sans; font.pixelSize: gl.u(12); font.weight: Font.Medium }
                             }
                         }
                     }
-                    // the name: fix it here (Enter) and the art search uses it
+                    // what to look for on SteamGridDB: the game's name, or a better one (Enter);
+                    // the game keeps its own name
                     RowLayout {
                         Layout.fillWidth: true
                         spacing: gl.u(10)
@@ -703,24 +704,24 @@ PanelWindow {
                                 verticalAlignment: TextInput.AlignVCenter
                                 clip: true
                                 color: Theme.text; font.family: Theme.sans; font.pixelSize: gl.u(13.5)
-                                text: Games.artGame ? Games.artGame.title : ""
-                                onAccepted: if (text.trim() && Games.artGame && text.trim() !== Games.artGame.title) Games.renameGame(text)
+                                text: Games.artGame ? (Games.artSearch || Games.artGame.title) : ""
+                                onAccepted: if (text.trim() && Games.artGame) Games.chooseArt(Games.artGame, Games.artKind, text)
                                 Keys.onEscapePressed: Games.artGame = null
                             }
                         }
                         HoverButton {
                             implicitWidth: renT.implicitWidth + gl.u(28); implicitHeight: gl.u(38); radius: gl.u(11)
                             color: Theme.white(0.07)
-                            enabled: !!Games.artGame && nameIn.text.trim() !== "" && nameIn.text.trim() !== Games.artGame.title
+                            enabled: !!Games.artGame && nameIn.text.trim() !== ""
                             opacity: enabled ? 1 : 0.5
-                            onClicked: Games.renameGame(nameIn.text)
-                            Text { id: renT; anchors.centerIn: parent; text: "Rename"; color: Theme.text2; font.family: Theme.sans; font.pixelSize: gl.u(12.5) }
+                            onClicked: Games.chooseArt(Games.artGame, Games.artKind, nameIn.text)
+                            Text { id: renT; anchors.centerIn: parent; text: "Search"; color: Theme.text2; font.family: Theme.sans; font.pixelSize: gl.u(12.5) }
                         }
                     }
                     Text {
                         visible: Games.artMatch !== "" && !Games.artBusy
                         Layout.fillWidth: true; elide: Text.ElideRight
-                        text: "SteamGridDB found: " + Games.artMatch + " (not it? rename the game above)"
+                        text: "SteamGridDB found: " + Games.artMatch + " (not it? search for another name above)"
                         color: Theme.muted; font.family: Theme.sans; font.pixelSize: gl.u(12)
                     }
                     Text {
