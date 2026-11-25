@@ -13,12 +13,12 @@ local function setting(key, fallback)
     local v = s:match('"' .. key .. '"%s*:%s*([%d.]+)')
     return tonumber(v) or fallback
 end
--- Settings → Appearance → Interface size ("uiScale": 1 / 1.15 / 1.3). The Eve panel
+-- Settings → Appearance → Interface size ("uiScale": 1 / 1.15 / 1.3). The AI panel
 -- (a Quickshell window) floats on the right just under the bar, which grows with it;
 -- Mod+drag moves it and Mod+right-drag resizes it like any window.
 local uiScale = setting("uiScale", 1)
 local function px(n) return math.floor(n * uiScale + 0.5) end
-hl.window_rule({ ["name"] = "tide-eve", ["float"] = true, ["move"] = "monitor_w-window_w-" .. px(12) .. " " .. px(58), ["rounding"] = px(24), ["border_size"] = 0, ["no_shadow"] = true, match = { ["class"] = "org.quickshell", ["title"] = "^Eve$" } })
+hl.window_rule({ ["name"] = "tide-eve", ["float"] = true, ["move"] = "monitor_w-window_w-" .. px(12) .. " " .. px(58), ["rounding"] = px(24), ["border_size"] = 0, ["no_shadow"] = true, match = { ["class"] = "org.quickshell", ["title"] = "^AI$" } })
 
 local windowRounding = math.floor(14 * setting("roundness", 18) / 18 + 0.5)
 local blurSize = math.floor(setting("glassBlur", 36) / 4 + 0.5)

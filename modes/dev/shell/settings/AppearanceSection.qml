@@ -144,6 +144,47 @@ ColumnLayout {
         }
     }
 
+    // what a terminal shows when it opens (bin/tide-greet); picking one also adds
+    // tide-greet's one startup line to your shell if it isn't there yet
+    readonly property string greetTool: Quickshell.env("HOME") + "/.config/Tide/bin/tide-greet"
+    property bool hasPokemon: false
+    Process { id: pokeCheck; running: true; command: ["sh", "-c", "command -v pokemon-colorscripts"]; onExited: code => ap.hasPokemon = code === 0 }
+    function setGreeting(v) {
+        Theme.set("terminalGreeting", v);
+        Quickshell.execDetached([greetTool, "install"]);
+    }
+    SCard {
+        title: "Terminal"
+        SRow {
+            label: "Pokémon instead of Tide's wave"
+            sub: "What a terminal shows when it opens: Tide's breaking wave in your wallpaper's colours, or a random Pokémon"
+            SToggle {
+                on: Theme.opt("terminalGreeting", "tide") === "pokemon"
+                onToggled: ap.setGreeting(on ? "tide" : "pokemon")
+            }
+        }
+        SRow {
+            visible: Theme.opt("terminalGreeting", "tide") === "pokemon" && !ap.hasPokemon
+            label: "pokemon-colorscripts isn't installed"
+            sub: "Until it is, terminals show Tide's wave. It installs with your AUR helper."
+            SBtn {
+                label: "Install…"; primary: true
+                onClicked: IslandState.closeSettings() || Quickshell.execDetached([Quickshell.env("HOME") + "/.config/Tide/bin/tide-term", "Install Pokémon greeting", "bash", "-c",
+                    "h=$(bash '" + Quickshell.shellDir + "/scripts/aur-helper.sh'); if [ -z \"$h\" ]; then echo 'No AUR helper (yay or paru) found.'; else $h -S --needed pokemon-colorscripts-git; fi; read -r -s -n 1 -p 'Press any key to close this window.'"])
+            }
+        }
+        SRow {
+            last: true
+            label: "Preview"
+            sub: "Opens a terminal with the greeting"
+            SBtn {
+                label: "Show"
+                onClicked: IslandState.closeSettings() || Quickshell.execDetached([Quickshell.env("HOME") + "/.config/Tide/bin/tide-term", "Terminal greeting", "bash", "-c",
+                    "'" + ap.greetTool + "'; read -r -s -n 1 -p 'Press any key to close this window.'"])
+            }
+        }
+    }
+
     // where your wallpapers are (the picker, Super+W, shows this folder)
     SCard {
         title: "Wallpapers"
