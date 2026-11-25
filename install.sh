@@ -104,7 +104,7 @@ PKGS=(
     # clipboard, capture, OCR, recording
     wl-clipboard cliphist grim slurp tesseract tesseract-data-eng gpu-screen-recorder
     # Tide's tools
-    python libnotify zenity pacman-contrib curl polkit xdg-utils
+    python python-gobject libnotify zenity pacman-contrib curl polkit xdg-utils
     # the terminal greeting (bin/tide-greet)
     fastfetch
     # the login screen (SilentSDDM by uiriansan) and the lock screen's font

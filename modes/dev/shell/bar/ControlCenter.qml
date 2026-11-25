@@ -195,8 +195,18 @@ Item {
     readonly property var btNearby: adapter ? adapter.devices.values.filter(d => !d.paired && d.deviceName) : []
     // pair, trust (so it reconnects by itself later), then connect
     property var btAsked: ({})          // addresses paired from here
+    property string btFailed: ""        // the last device that didn't pair
+    // a device asking for a code (services/BtAgent.qml): the Bluetooth list opens to it
+    Connections {
+        target: BtAgent
+        function onAsked() {
+            if (!cc.open) IslandState.controlCenterRequested();
+            cc.expand = "bt";
+        }
+    }
     function btPair(d) {
         if (d.pairing) { d.cancelPair(); return; }
+        btFailed = "";
         btAsked[d.address] = true;
         d.pair();
     }
@@ -206,10 +216,20 @@ Item {
             required property var modelData
             target: modelData
             function onPairedChanged() {
-                if (!modelData.paired || !cc.btAsked[modelData.address]) return;
+                if (!modelData.paired) return;
+                if (BtAgent.ask && BtAgent.ask.kind === "display") BtAgent.ask = null;
+                if (!cc.btAsked[modelData.address]) return;
                 delete cc.btAsked[modelData.address];
+                cc.btFailed = "";
                 modelData.trusted = true;
                 modelData.connect();
+            }
+            // pairing ended without pairing: say so (instead of nothing happening)
+            function onPairingChanged() {
+                if (modelData.pairing || modelData.paired || !cc.btAsked[modelData.address]) return;
+                delete cc.btAsked[modelData.address];
+                cc.btFailed = modelData.name || modelData.deviceName;
+                if (BtAgent.ask) BtAgent.ask = null;
             }
         }
     }
@@ -446,6 +466,62 @@ Item {
                         color: cc.btOn ? Theme.ink : Theme.text
                     }
                 }
+            }
+            // a device asking for a code: confirm it, type it, or type it on the device
+            ColumnLayout {
+                id: btAsk
+                readonly property var q: BtAgent.ask
+                visible: cc.btOn && !!q
+                Layout.fillWidth: true
+                Layout.margins: Theme.s(8)
+                spacing: Theme.s(8)
+                T {
+                    Layout.fillWidth: true
+                    wrapMode: Text.WordWrap
+                    px: Theme.s(12)
+                    text: !btAsk.q ? "" : btAsk.q.kind === "confirm" ? "Does " + btAsk.q.device + " show this code?"
+                        : btAsk.q.kind === "display" ? "Type this code on " + btAsk.q.device + ", then press Enter on it"
+                        : btAsk.q.kind === "authorize" ? "Let " + btAsk.q.device + " pair with this computer?"
+                        : "Type the code " + btAsk.q.device + " shows"
+                }
+                T {
+                    visible: !!btAsk.q && btAsk.q.code !== ""
+                    text: btAsk.q ? btAsk.q.code.split("").join(" ") : ""
+                    px: Theme.s(24); weight: Font.DemiBold
+                    font.family: Theme.mono
+                    color: Theme.accent
+                }
+                Rectangle {
+                    visible: !!btAsk.q && (btAsk.q.kind === "pin" || btAsk.q.kind === "passkey")
+                    Layout.fillWidth: true
+                    implicitHeight: Theme.s(36)
+                    radius: Math.min(Theme.s(18), Theme.s(10) * Theme.radiusScale)
+                    color: Qt.rgba(0, 0, 0, 0.3)
+                    border.width: 1; border.color: codeIn.activeFocus ? Theme.accent : Theme.white(0.1)
+                    TextInput {
+                        id: codeIn
+                        anchors.fill: parent; anchors.leftMargin: Theme.s(12); anchors.rightMargin: Theme.s(12)
+                        verticalAlignment: TextInput.AlignVCenter
+                        color: Theme.text; font.family: Theme.mono; font.pixelSize: Theme.s(14)
+                        inputMethodHints: Qt.ImhDigitsOnly
+                        onVisibleChanged: if (visible) { text = ""; forceActiveFocus(); }
+                        onAccepted: BtAgent.answer(true, text)
+                    }
+                }
+                Row {
+                    spacing: Theme.s(8)
+                    visible: !!btAsk.q && btAsk.q.kind !== "display"
+                    SegmentButton { label: btAsk.q && (btAsk.q.kind === "pin" || btAsk.q.kind === "passkey") ? "Pair" : btAsk.q && btAsk.q.kind === "authorize" ? "Allow" : "Confirm"; primary: true; onClicked: BtAgent.answer(true, codeIn.text) }
+                    SegmentButton { label: "Cancel"; onClicked: BtAgent.answer(false) }
+                }
+            }
+            T {
+                visible: cc.btOn && cc.btFailed !== "" && !BtAgent.ask
+                Layout.fillWidth: true
+                Layout.leftMargin: Theme.s(8); Layout.rightMargin: Theme.s(8)
+                wrapMode: Text.WordWrap
+                text: "Couldn't pair with " + cc.btFailed + ". Put it in pairing mode and try again."
+                px: Theme.s(11); color: Theme.red
             }
             SectionLabel { visible: cc.btOn && cc.btDevices.length > 0; text: "Devices" }
             Repeater {
