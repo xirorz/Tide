@@ -15,9 +15,12 @@ esac
 km=wpa-psk
 [[ $sec == *WPA3* && $sec != *WPA2* && $sec != *WPA1* ]] && km=sae
 
-# a name of its own if one with the network's name is already there
+# an empty profile with the network's name (a first try that never connected) goes;
+# a real one keeps its name and this one gets a name of its own
 name=$ssid
-if nmcli -t -f NAME connection show | grep -Fxq -- "$ssid"; then name="$ssid (Tide)"; fi
+ts=$(nmcli -g connection.timestamp connection show id "$ssid" 2>/dev/null)
+if [ "$ts" = 0 ]; then nmcli connection delete id "$ssid" >/dev/null 2>&1
+elif [ -n "$ts" ]; then name="$ssid (Tide)"; fi
 
 if ! out=$(nmcli connection add type wifi con-name "$name" ${dev:+ifname "$dev"} ssid "$ssid" \
         wifi-sec.key-mgmt "$km" 2>&1); then
