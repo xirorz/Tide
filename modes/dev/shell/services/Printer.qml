@@ -105,6 +105,8 @@ Singleton {
     // Allow: run that command through pkexec (the system asks for the password; Tide
     // never sees it), then look again
     property string allowError: ""
+    property bool hasHelper: false
+    Process { running: true; command: ["test", "-x", "/usr/lib/tide/tide-root"]; onExited: code => root.hasHelper = code === 0 }
     function allowFind() {
         if (!fw.cmd || allower.running) return;
         allowError = "";
@@ -113,7 +115,9 @@ Singleton {
     }
     Process {
         id: allower
-        command: ["pkexec", "sh", "-c", root.fw.cmd || "true"]
+        // Tide's root helper builds the rule itself (/usr/lib/tide, from the installer);
+        // an older install runs the command bambu.py printed
+        command: root.hasHelper ? ["pkexec", "/usr/lib/tide/tide-root", "firewall-allow"] : ["pkexec", "sh", "-c", root.fw.cmd || "true"]
         onExited: code => {
             Games.picking = false;        // Settings comes back (it stepped aside for the password)
             if (code === 0) root.find();

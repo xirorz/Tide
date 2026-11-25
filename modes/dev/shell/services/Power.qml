@@ -134,6 +134,7 @@ Singleton {
                 try {
                     const d = JSON.parse(text);
                     if (d.supported !== undefined) { root.chargeLimitSupported = d.supported; root.chargeLimit = d.limit; root.chargeLimitWritable = !!d.writable; }
+                    if (d.note) Quickshell.execDetached(["notify-send", "-a", "Tide", "Charge limit", d.note]);
                     else if (d.error) Quickshell.execDetached(["notify-send", "-a", "Tide", "Charge limit", d.error]);
                 } catch (e) {}
             }

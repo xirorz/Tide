@@ -188,6 +188,14 @@ run mkdir -p "$HOME/.config/systemd/user"
 run cp "$HERE/install/systemd/tide-awww.service" "$HOME/.config/systemd/user/tide-awww.service"
 run systemctl --user daemon-reload
 say "wallpaper daemon: tide-awww (started at login)"
+# Tide's root helper: the steps that need the password (charge limit, login screen,
+# printer firewall) run from a root-owned copy, named in the password window
+if [ $DRY = 1 ]; then say "would install Tide's root helper in /usr/lib/tide (and its polkit action)"
+else
+    sudo install -D -o root -g root -m 755 "$HERE/install/root/tide-root" /usr/lib/tide/tide-root
+    sudo install -D -o root -g root -m 644 "$HERE/install/root/org.tide.root.policy" /usr/share/polkit-1/actions/org.tide.root.policy
+    say "root helper: /usr/lib/tide/tide-root (asks for the password only when a setting needs it)"
+fi
 # SilentSDDM as the login screen
 if [ ! -f /etc/sddm.conf.d/zz-tide-theme.conf ] && ! grep -qsx 'Current=silent' /etc/sddm.conf /etc/sddm.conf.d/*.conf; then
     if [ $DRY = 1 ]; then say "would set SilentSDDM as the login screen theme"

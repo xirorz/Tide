@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE policyconfig PUBLIC "-//freedesktop//DTD PolicyKit Policy Configuration 1.0//EN"
+ "http://www.freedesktop.org/standards/PolicyKit/1/policyconfig.dtd">
+<!-- Tide: the password window for /usr/lib/tide/tide-root (the charge limit, the login
+     screen, the printer's firewall rule) names Tide instead of a bare command -->
+<policyconfig>
+  <vendor>Tide</vendor>
+  <action id="org.tide.root">
+    <description>Change a system setting for Tide</description>
+    <message>Tide needs your password to change a system setting (battery charge limit, login screen or firewall)</message>
+    <defaults>
+      <allow_any>auth_admin</allow_any>
+      <allow_inactive>auth_admin</allow_inactive>
+      <allow_active>auth_admin_keep</allow_active>
+    </defaults>
+    <annotate key="org.freedesktop.policykit.exec.path">/usr/lib/tide/tide-root</annotate>
+  </action>
+</policyconfig>
