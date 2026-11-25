@@ -271,6 +271,10 @@ Singleton {
     property string artKind: "cover"        // cover | hero
     property var artChoices: []
     property string artMatch: ""            // the game SteamGridDB found for the name
+    property int artPage: 0                 // SteamGridDB gives 50 a page; "Show more" asks for the next
+    property int artTotal: 0
+    property bool artMore: false
+    readonly property bool artFinding: artFind.running
     // adult art (SteamGridDB's NSFW): off unless turned on in Settings → Games
     property bool artAdult: false
     function setArtAdult(on) { artAdult = on; saveState(); }
@@ -283,9 +287,18 @@ Singleton {
         if (g !== artGame) { artSearch = ""; artApplied = ({}); artNote = ""; }
         if (search !== undefined) artSearch = search.trim() === g.title ? "" : search.trim();
         artGame = g; artKind = kind || "cover"; artChoices = []; artMatch = ""; artError = ""; artBusy = true;
-        artFind.command = ["python3", "-I", artTool, "find", artKind, artSearch || g.title,
-            g.platform === "steam" && !artSearch ? String(g.appid || "") : "", artAdult ? "1" : "0"];
+        artPage = 0; artTotal = 0; artMore = false;
+        artFindPage();
+    }
+    function artFindPage() {
+        artFind.command = ["python3", "-I", artTool, "find", artKind, artSearch || artGame.title,
+            artGame.platform === "steam" && !artSearch ? String(artGame.appid || "") : "", artAdult ? "1" : "0", String(artPage)];
         artFind.running = true;
+    }
+    function moreArt() {
+        if (!artGame || artFind.running || !artMore) return;
+        artBusy = true; artPage++;
+        artFindPage();
     }
     Process {
         id: artFind
@@ -294,8 +307,10 @@ Singleton {
                 root.artBusy = false;
                 let d; try { d = JSON.parse(text); } catch (e) { root.artError = "SteamGridDB didn't answer"; return; }
                 if (d.error) { root.artError = d.error; return; }
-                root.artChoices = d.items || [];
+                root.artChoices = root.artPage > 0 ? root.artChoices.concat(d.items || []) : (d.items || []);
                 root.artMatch = d.match || "";
+                root.artTotal = d.total || root.artChoices.length;
+                root.artMore = !!d.more;
                 if (!root.artChoices.length) root.artError = "No " + (root.artKind === "cover" ? "covers" : "banners") + " for this game yet";
             }
         }

@@ -7,10 +7,11 @@
 #
 #   artdb.py has-key                     true / false
 #   artdb.py set-key                     the key on standard input ("" removes it)
-#   artdb.py find <kind> <title> [appid] [adult]
-#                                        {match: the game SteamGridDB found, items:
-#                                        up to 12 [{thumb, url}]}; kind: cover (600x900)
-#                                        | hero (wide banner); adult: 1 includes adult art
+#   artdb.py find <kind> <title> [appid] [adult] [page]
+#                                        {match: the game SteamGridDB found, total,
+#                                        items: [{thumb, url}] (50 a page, from 0)};
+#                                        kind: cover (600x900) | hero (wide banner);
+#                                        adult: 1 includes adult art
 #   artdb.py set <game id> <kind> <url>  download it and use it for that game
 #   artdb.py reset <game id>             back to the game's own art
 import hashlib, json, os, sys, urllib.parse, urllib.request
@@ -40,11 +41,11 @@ def get(path):
         return json.load(r)
 
 
-def find(kind, title, appid="", adult=False):
+def find(kind, title, appid="", adult=False, page=0):
     if not key():
         return out({"error": "Add your SteamGridDB API key in Settings → Games first"})
     what = "grids" if kind == "cover" else "heroes"
-    q = "?" + "&".join((["dimensions=600x900"] if kind == "cover" else []) + (["nsfw=any"] if adult else []))
+    q = "?" + "&".join((["dimensions=600x900"] if kind == "cover" else []) + (["nsfw=any"] if adult else []) + [f"page={page}"])
     match = ""
     try:
         d = None
@@ -66,7 +67,7 @@ def find(kind, title, appid="", adult=False):
         return out({"error": "Couldn't reach SteamGridDB"})
     items = [{"thumb": a.get("thumb") or a.get("url"), "url": a.get("url")}
              for a in d.get("data", []) if a.get("url") and (adult or not a.get("nsfw")) and not a.get("humor")]
-    out({"match": match, "items": items[:12]})
+    out({"match": match, "items": items, "total": d.get("total", len(items)), "more": len(d.get("data", [])) >= d.get("limit", 50)})
 
 
 def chosen():
@@ -135,7 +136,8 @@ def main(a):
                 f.write(k + "\n")
         return out({"ok": True})
     if a[:1] == ["find"] and len(a) >= 3 and a[1] in ("cover", "hero"):
-        return find(a[1], a[2], a[3] if len(a) > 3 else "", len(a) > 4 and a[4] == "1")
+        return find(a[1], a[2], a[3] if len(a) > 3 else "", len(a) > 4 and a[4] == "1",
+                    int(a[5]) if len(a) > 5 and a[5].isdigit() else 0)
     if a[:1] == ["set"] and len(a) == 4 and a[2] in ("cover", "hero"):
         return set_art(a[1], a[2], a[3])
     if a[:1] == ["reset"] and len(a) == 2:
