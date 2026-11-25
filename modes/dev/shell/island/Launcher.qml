@@ -16,6 +16,9 @@ Item {
     signal closeRequested()
     property string query: ""
     property int sel: 0
+    // "Show all apps": every installed app, A to Z, instead of recent apps and quick
+    // tools (search still works in it); back to the usual view on Escape or when closed
+    property bool allApps: false
 
     readonly property string q: query.trim()
     readonly property var mathV: M.looksLikeMath(q) ? M.evalMath(q) : null
@@ -83,12 +86,19 @@ Item {
     ])
 
     readonly property var sections: {
+        if (allApps) {
+            const ql = q.toLowerCase();
+            const all = entries.map(appRow).filter(r => !ql || r.title.toLowerCase().indexOf(ql) >= 0 || r.sub.toLowerCase().indexOf(ql) >= 0);
+            return [{ title: (ql ? "Apps matching \"" + q + "\"" : "All apps") + " · " + all.length, items: all }];
+        }
         if (!q) {
             const byId = {};
             for (const e of entries) byId[e.id] = e;
             let recent = RecentApps.ids.map(id => byId[id]).filter(e => e !== undefined);
             if (recent.length < 4) recent = recent.concat(entries.filter(e => recent.indexOf(e) < 0));
-            return [{ title: "Recent apps", items: recent.slice(0, 4).map(appRow) },
+            const showAll = { title: "Show all apps", sub: entries.length + " installed, A to Z", icon: Icons.grid, key: "", tool: false,
+                              act: () => { lr.allApps = true; lr.sel = 0; results.contentY = 0; } };
+            return [{ title: "Recent apps", items: recent.slice(0, 4).map(appRow).concat([showAll]) },
                     { title: "Quick tools", items: tools }];
         }
         const ql = q.toLowerCase();
@@ -125,6 +135,7 @@ Item {
     }
 
     function reset() {
+        allApps = false;
         input.text = "";
         sel = 0;
         input.forceActiveFocus();
@@ -171,9 +182,9 @@ Item {
                     clip: true
                     selectByMouse: true
                     selectionColor: Theme.white(0.2)
-                    onTextChanged: { lr.query = text; lr.sel = 0; }
+                    onTextChanged: { lr.query = text; lr.sel = 0; results.contentY = 0; }
                     Keys.onPressed: event => {
-                        if (event.key === Qt.Key_Escape) { lr.closeRequested(); event.accepted = true; }
+                        if (event.key === Qt.Key_Escape) { if (lr.allApps) { lr.allApps = false; input.text = ""; lr.sel = 0; } else lr.closeRequested(); event.accepted = true; }
                         else if (event.key === Qt.Key_Down) { lr.sel = Math.min(lr.rowCount - 1, lr.sel + 1); event.accepted = true; }
                         else if (event.key === Qt.Key_Up) { lr.sel = Math.max(0, lr.sel - 1); event.accepted = true; }
                         else if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) { lr.activate(); event.accepted = true; }
@@ -239,13 +250,24 @@ Item {
             }
         }
 
-        // results
-        Item {
+        // results (scrolls when there are more than fit: all apps)
+        Flickable {
+            id: results
             Layout.fillWidth: true
             Layout.fillHeight: true
             clip: true
+            contentHeight: resultsCol.implicitHeight
+            boundsBehavior: Flickable.StopAtBounds
+            WheelScroll {}
+            // the keyboard's row stays in view
+            function show(item) {
+                const y = item.mapToItem(resultsCol, 0, 0).y;
+                if (y < contentY) contentY = y;
+                else if (y + item.height > contentY + height) contentY = y + item.height - height;
+            }
 
             Column {
+                id: resultsCol
                 width: parent.width
                 spacing: Theme.s(2)
 
@@ -256,6 +278,8 @@ Item {
                         required property var modelData
                         width: parent.width
                         height: modelData.header ? head.implicitHeight : Theme.s(44)
+                        readonly property bool current: !modelData.header && modelData.row === lr.sel
+                        onCurrentChanged: if (current) results.show(entry)
 
                         Text {
                             id: head

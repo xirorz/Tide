@@ -63,6 +63,7 @@ var warn = "M12 4 L21 20 H3 Z M12 10 V14 M12 17 V17";
 var pacnew = "M6 4 H15 L18 7 V20 H6 Z M9 10 H15 M9 14 H13";
 var lock = "M7 11 V8 A5 5 0 0 1 17 8 V11 M6 11 H18 V20 H6 Z";
 var chevronRight = "M9 18 L15 12 L9 6";
+var grid = "M5 5 H10 V10 H5 Z M14 5 H19 V10 H14 Z M5 14 H10 V19 H5 Z M14 14 H19 V19 H14 Z";
 var chevronDown = "M6 9 L12 15 L18 9";
 var chevronUp = "M6 15 L12 9 L18 15";
 var speakers = rect(5, 3, 14, 18, 2) + circle(12, 14, 3) + circle(12, 7.5, 1);
