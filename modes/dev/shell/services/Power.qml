@@ -106,6 +106,13 @@ Singleton {
             save({});
         }
     }
+    // on battery with the battery's idle times in use: Settings → Apps edits those, so
+    // the plugged-in times (kept in "saved") come back unchanged on plug-in
+    readonly property bool batteryIdleActive: onBattery && !!saved.battery && !!saved.idle && batteryIdle
+    function setIdle(key, minutes) {
+        if (batteryIdleActive) setBatteryTiming(key, minutes);
+        else Idle.set(key, minutes);
+    }
     // a new battery idle time while on battery: used right away
     function setBatteryTiming(key, minutes) {
         const t = Object.assign({}, batteryTimings);
