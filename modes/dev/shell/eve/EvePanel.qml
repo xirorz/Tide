@@ -576,6 +576,64 @@ Item {
             x: Theme.s(14); y: Theme.s(30)
             width: parent.width - Theme.s(28)
             spacing: Theme.s(8)
+            // the assistant waits for your OK: one card per request, newest last
+            Repeater {
+                model: EveData.approvals
+                delegate: Rectangle {
+                    id: apc
+                    required property var modelData
+                    readonly property bool high: modelData.risk === "high"
+                    width: footerCol.width
+                    height: apCol.implicitHeight + Theme.s(28)
+                    radius: Theme.s(16)
+                    color: Theme.surface === "glass" ? Qt.rgba(0.1, 0.1, 0.11, 0.96) : "#1C1C1F"
+                    border.width: 1
+                    border.color: high ? Qt.rgba(Theme.warning.r, Theme.warning.g, Theme.warning.b, 0.5) : Theme.accentLine
+                    Column {
+                        id: apCol
+                        x: Theme.s(14); y: Theme.s(14)
+                        width: parent.width - Theme.s(28)
+                        spacing: Theme.s(8)
+                        Row {
+                            spacing: Theme.s(8)
+                            Icon { anchors.verticalCenter: parent.verticalCenter; path: "M12 3 L21 19 H3 Z M12 10 V14 M12 16.5 V16.6"; size: Theme.s(15); color: apc.high ? Theme.warning : Theme.accent }
+                            Text { anchors.verticalCenter: parent.verticalCenter; text: EveData.assistantName + " needs your OK"; color: Theme.text; font.family: Theme.sans; font.pixelSize: Theme.s(13); font.weight: Font.DemiBold }
+                            Text { anchors.verticalCenter: parent.verticalCenter; text: apc.modelData.title || ""; color: Theme.muted; font.family: Theme.sans; font.pixelSize: Theme.s(12) }
+                        }
+                        Rectangle {
+                            visible: !!apc.modelData.command
+                            width: parent.width; height: cmdText.implicitHeight + Theme.s(16); radius: Theme.s(9)
+                            color: Qt.rgba(0, 0, 0, 0.35)
+                            Text { id: cmdText; x: Theme.s(10); y: Theme.s(8); width: parent.width - Theme.s(20); wrapMode: Text.WrapAnywhere; maximumLineCount: 6; elide: Text.ElideRight
+                                   text: apc.modelData.command || ""; color: Theme.text; font.family: Theme.mono; font.pixelSize: Theme.s(12) }
+                        }
+                        Text { visible: !!apc.modelData.reason; width: parent.width; wrapMode: Text.Wrap; maximumLineCount: 4; elide: Text.ElideRight
+                               text: apc.modelData.reason || ""; color: Theme.text2; font.family: Theme.sans; font.pixelSize: Theme.s(12) }
+                        Row {
+                            spacing: Theme.s(8)
+                            HoverButton {
+                                width: okT.implicitWidth + Theme.s(26); height: Theme.s(32); radius: Theme.s(10); hoverFill: false
+                                color: hovered ? Qt.lighter(Theme.accent, 1.1) : Theme.accent
+                                onClicked: EveData.decide(apc.modelData.id, "approve", "once")
+                                Text { id: okT; anchors.centerIn: parent; text: "Approve"; color: Theme.ink; font.family: Theme.sans; font.pixelSize: Theme.s(12); font.weight: Font.DemiBold }
+                            }
+                            HoverButton {
+                                visible: (apc.modelData.scopes || []).indexOf("task") >= 0
+                                width: taskT.implicitWidth + Theme.s(26); height: Theme.s(32); radius: Theme.s(10); hoverFill: false
+                                color: hovered ? Theme.white(0.16) : Theme.white(0.1)
+                                onClicked: EveData.decide(apc.modelData.id, "approve", "task")
+                                Text { id: taskT; anchors.centerIn: parent; text: "Approve for this task"; color: Theme.text; font.family: Theme.sans; font.pixelSize: Theme.s(12) }
+                            }
+                            HoverButton {
+                                width: noT.implicitWidth + Theme.s(26); height: Theme.s(32); radius: Theme.s(10); hoverFill: false
+                                color: hovered ? Theme.white(0.16) : Theme.white(0.1)
+                                onClicked: EveData.decide(apc.modelData.id, "deny", "once")
+                                Text { id: noT; anchors.centerIn: parent; text: "Deny"; color: Theme.text; font.family: Theme.sans; font.pixelSize: Theme.s(12) }
+                            }
+                        }
+                    }
+                }
+            }
             // attachment chips
             Flow {
                 visible: EveData.attachments.length > 0

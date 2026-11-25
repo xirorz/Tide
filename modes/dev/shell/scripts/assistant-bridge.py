@@ -14,6 +14,7 @@ import array
 import json
 import os
 import queue
+import re
 import subprocess
 import sys
 import threading
@@ -237,7 +238,214 @@ class AiApi:
         return self.audio(f'/voice/dictation/{key}/cancel', b'')
 
 
-PROTOCOLS = {'ai-api': AiApi}
+CHATS = Path(os.environ.get('XDG_DATA_HOME', Path.home() / '.local/share')) / 'tide/chats'
+
+
+class ChatStore:
+    """Chats for a backend that keeps none (an OpenAI-compatible app such as LM Studio or Ollama): one JSON file per chat
+    under ~/.local/share/tide/chats/<backend>/, so the panel's sidebar works the same with it."""
+
+    def __init__(self, backend_id):
+        self.dir = CHATS / re.sub(r'[^\w.-]', '_', backend_id or 'openai')
+        self.lock = threading.Lock()
+
+    def path(self, chat):
+        return self.dir / (re.sub(r'[^\w.-]', '_', chat) + '.json')
+
+    def load(self, chat):
+        try:
+            return json.loads(self.path(chat).read_text())
+        except (OSError, ValueError):
+            return dict(id=chat, title='', pinned=False, messages=[])
+
+    def save(self, data):
+        with self.lock:
+            self.dir.mkdir(parents=True, exist_ok=True)
+            temp = self.path(data['id']).with_suffix('.tmp')
+            temp.write_text(json.dumps(data, ensure_ascii=False))
+            temp.replace(self.path(data['id']))
+
+    def chats(self):
+        out = []
+        for file in self.dir.glob('*.json') if self.dir.is_dir() else []:
+            try:
+                data = json.loads(file.read_text())
+            except (OSError, ValueError):
+                continue
+            last = data['messages'][-1]['createdAt'] if data.get('messages') else 0
+            out.append(dict(id=data['id'], title=data.get('title') or '', pinned=bool(data.get('pinned')), updatedAt=last))
+        return sorted(out, key=lambda c: -c['updatedAt'])
+
+    def delete(self, chat):
+        try:
+            self.path(chat).unlink()
+        except OSError:
+            pass
+
+
+class OpenAi:
+    """Any OpenAI-compatible server (LM Studio, Ollama, llama.cpp, vLLM, Jan): chat only, with the chat list kept by Tide."""
+
+    def __init__(self, backend):
+        url = backend['url'].rstrip('/')
+        self.base = url if url.endswith('/v1') else url + '/v1'
+        self.name = backend.get('name') or 'Assistant'
+        self.model = backend.get('model') or ''
+        self.token = None
+        if backend.get('tokenFile'):
+            self.token = Path(os.path.expanduser(backend['tokenFile'])).read_text().strip()
+        self.store = ChatStore(backend.get('id'))
+        self.stops = {}
+
+    def headers(self, body=True):
+        headers = {'Content-Type': 'application/json'} if body else {}
+        if self.token:
+            headers['Authorization'] = 'Bearer ' + self.token
+        return headers
+
+    def models(self):
+        request = urllib.request.Request(self.base + '/models', headers=self.headers(False))
+        try:
+            with urllib.request.urlopen(request, timeout=8) as response:
+                data = json.loads(response.read() or b'{}')
+        except urllib.error.HTTPError as exc:
+            raise Failed(f'HTTP {exc.code}') from None
+        except (OSError, ValueError) as exc:
+            raise Failed(f'Not reachable ({getattr(exc, "reason", exc)})') from None
+        return [m.get('id') for m in data.get('data') or [] if isinstance(m, dict) and m.get('id')]
+
+    def manifest(self):
+        models = self.models()
+        self.model = self.model if self.model in models else (models[0] if models else self.model)
+        return dict(api='openai', name=self.name, capabilities=['chat', 'history', 'cancel'], apps=[])
+
+    def health(self):
+        models = self.models()
+        return dict(ready=bool(models), detail=f'Model: {self.model}' if models else 'No model is loaded')
+
+    def chats(self):
+        return self.store.chats()
+
+    def messages(self, chat):
+        return self.store.load(chat)['messages']
+
+    def update_chat(self, chat, change):
+        data = self.store.load(chat)
+        data.update({k: v for k, v in change.items() if k in ('title', 'pinned')})
+        self.store.save(data)
+
+    def delete_chat(self, chat):
+        self.store.delete(chat)
+
+    def cancel(self, chat):
+        stop = self.stops.get(chat)
+        if stop:
+            stop.set()
+        return dict(cancelled=bool(stop))
+
+    def reply(self, chat, text, think, attachments):
+        data = self.store.load(chat)
+        now = int(time.time() * 1000)
+        data['messages'].append(dict(id=str(now), role='user', text=text, createdAt=now))
+        if not data.get('title'):
+            data['title'] = ' '.join(text.split()[:6])[:60]
+        self.store.save(data)
+        history = [dict(role=m['role'], content=m['text']) for m in data['messages'][-40:] if m.get('text')]
+        body = dict(model=self.model, messages=history, stream=True)
+        request = urllib.request.Request(self.base + '/chat/completions', json.dumps(body).encode(), self.headers(), method='POST')
+        stop = self.stops[chat] = threading.Event()
+        started, first, parts = time.monotonic(), None, []
+        try:
+            response = urllib.request.urlopen(request, timeout=600)
+        except urllib.error.HTTPError as exc:
+            raise Failed(f'HTTP {exc.code}') from None
+        except OSError as exc:
+            raise Failed(f'Not reachable ({getattr(exc, "reason", exc)})') from None
+        try:
+            with response:
+                for line in response:
+                    if stop.is_set():
+                        yield dict(type='cancelled')
+                        break
+                    if not line.startswith(b'data: ') or line.strip() == b'data: [DONE]':
+                        continue
+                    try:
+                        delta = (json.loads(line[6:]).get('choices') or [{}])[0].get('delta') or {}
+                    except ValueError:
+                        continue
+                    if delta.get('content'):
+                        first = first or time.monotonic()
+                        parts.append(delta['content'])
+                        yield dict(type='delta', text=delta['content'])
+        finally:
+            self.stops.pop(chat, None)
+        answer = ''.join(parts)
+        if answer:
+            total = (time.monotonic() - started) * 1000
+            telemetry = dict(ttftMs=round(((first or time.monotonic()) - started) * 1000), totalMs=round(total),
+                             tokensPerSecond=None)
+            data = self.store.load(chat)
+            data['messages'].append(dict(id=str(int(time.time() * 1000)), role='assistant', text=answer, createdAt=int(time.time() * 1000),
+                                         telemetry=telemetry, **({'cancelled': True} if stop.is_set() else {})))
+            self.store.save(data)
+            if not stop.is_set():
+                yield dict(type='done', text=answer, telemetry=telemetry)
+
+
+PROTOCOLS = {'ai-api': AiApi, 'openai': OpenAi}
+
+
+def probe(url, token=None):
+    """What answers at an address someone pasted: the Tide AI API, or an OpenAI-compatible server. (protocol, name, url)."""
+    url = url.strip().rstrip('/')
+    if not re.match(r'^https?://', url):
+        url = 'http://' + url
+    headers = {'Authorization': 'Bearer ' + token} if token else {}
+    def get(address):
+        try:
+            with urllib.request.urlopen(urllib.request.Request(address, headers=headers), timeout=6) as response:
+                return json.loads(response.read() or b'{}')
+        except (OSError, ValueError):
+            return None
+    for base in (url, url + '/ai/v1'):
+        found = get(base)
+        if isinstance(found, dict) and found.get('api') == 'tide-ai':
+            return 'ai-api', found.get('name') or 'Assistant', base
+    for base in ((url,) if url.endswith('/v1') else (url + '/v1', url)):
+        found = get(base + '/models')
+        if isinstance(found, dict) and isinstance(found.get('data'), list):
+            return 'openai', '', base
+    return None, '', url
+
+
+# Where common local AI apps answer by default: Settings → AI offers the ones it finds running.
+KNOWN_APPS = (('LM Studio', 'http://127.0.0.1:1234'), ('Ollama', 'http://127.0.0.1:11434'), ('llama.cpp server', 'http://127.0.0.1:8080'),
+              ('Jan', 'http://127.0.0.1:1337'), ('vLLM', 'http://127.0.0.1:8000'), ('LocalAI', 'http://127.0.0.1:8081'))
+
+
+def discover():
+    """The local AI apps answering at their usual addresses right now, as [{name, url, protocol}]."""
+    found = []
+    def check(name, url):
+        protocol, own, base = probe(url)
+        if protocol:
+            found.append(dict(name=own or name, url=base, protocol=protocol))
+    threads = [threading.Thread(target=check, args=app) for app in KNOWN_APPS]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join(10)
+    return found
+
+
+SECRETS = Path.home() / '.config/Tide/secrets'
+
+
+def save_config(config):
+    CONFIG.parent.mkdir(parents=True, exist_ok=True)
+    temp = CONFIG.with_suffix('.tmp')
+    temp.write_text(json.dumps(config, indent=2) + '\n')
+    temp.replace(CONFIG)
 # The microphone as 16 kHz mono 16-bit PCM on stdout (PipeWire's PulseAudio server).
 RECORDER = ['parecord', '--raw', '--format=s16le', '--rate=16000', '--channels=1', '--latency-msec=100']
 CHUNK = 16000 * 2 // 4  # A quarter second of audio per request.
@@ -619,6 +827,7 @@ class Bridge:
         self.lock = threading.Lock()
         self.microphone = None
         self.speaker = None
+        self.name = ''
         self.phone = None
 
     def connect(self):
@@ -639,7 +848,8 @@ class Bridge:
             return emit(ev='status', configured=True, connected=False, ready=False, name=backend.get('name') or '', detail=str(exc))
         self.client = client
         self.capabilities = list(manifest.get('capabilities') or [])
-        emit(ev='manifest', backend=backend.get('id') or '', name=manifest.get('name') or backend.get('name') or 'Assistant',
+        self.name = manifest.get('name') or backend.get('name') or 'Assistant'
+        emit(ev='manifest', backend=backend.get('id') or '', url=backend.get('url') or '', protocol=backend.get('type') or 'ai-api', name=manifest.get('name') or backend.get('name') or 'Assistant',
              capabilities=self.capabilities, apps=manifest.get('apps') or [])
         self.check_health()
 
@@ -651,20 +861,59 @@ class Bridge:
             manifest = self.client.manifest()
             if list(manifest.get('capabilities') or []) != self.capabilities:
                 self.capabilities = list(manifest.get('capabilities') or [])
-                emit(ev='manifest', backend=(self.backend or {}).get('id') or '', name=manifest.get('name') or 'Assistant',
+                emit(ev='manifest', backend=(self.backend or {}).get('id') or '', url=(self.backend or {}).get('url') or '', protocol=(self.backend or {}).get('type') or 'ai-api', name=manifest.get('name') or 'Assistant',
                      capabilities=self.capabilities, apps=manifest.get('apps') or [])
             health = self.client.health()
             emit(ev='status', configured=True, connected=True, ready=bool(health.get('ready', True)), detail=health.get('detail') or '')
         except Failed as exc:
             emit(ev='status', configured=True, connected=False, ready=False, detail=str(exc))
 
+    def send_backends(self):
+        config, _ = load_config()
+        using = (pick(config, 'panel') or {}).get('id')
+        emit(ev='backends', using=using or '', backends=[dict(id=b.get('id'), name=b.get('name') or '', url=b.get('url') or '',
+             type=b.get('type') or 'ai-api', model=b.get('model') or '', token=bool(b.get('tokenFile'))) for b in config.get('backends') or []])
+
+    def save_backend(self, request):
+        """An assistant added (or changed) in Settings: its address checked, saved to ai.json, its key (if any) to a file only
+        you can read, and connected to."""
+        protocol, name, url = probe(request.get('url') or '', request.get('token') or None)
+        if not protocol:
+            return emit(ev='probe', ok=False, url=url, detail="Nothing at that address answers as an assistant (Tide AI API or OpenAI-compatible).")
+        config, _ = load_config()
+        backends = config.setdefault('backends', [])
+        given = (request.get('name') or name or ('Local model' if protocol == 'openai' else 'Assistant')).strip()
+        ident = request.get('id') or re.sub(r'[^a-z0-9]+', '-', given.lower()).strip('-') or 'assistant'
+        while not request.get('id') and any(b.get('id') == ident for b in backends):
+            ident += '-2'
+        entry = next((b for b in backends if b.get('id') == ident), None)
+        if entry is None:
+            entry = dict(id=ident)
+            backends.append(entry)
+        entry.update(name=given, type=protocol, url=url, enabled=True)
+        if request.get('model'):
+            entry['model'] = request['model']
+        if request.get('token'):
+            SECRETS.mkdir(parents=True, exist_ok=True, mode=0o700)
+            secret = SECRETS / f'{ident}.token'
+            secret.write_text(request['token'].strip())
+            secret.chmod(0o600)
+            entry['tokenFile'] = str(secret)
+        if request.get('use', True) or not config.get('panel'):
+            config['panel'] = config['island'] = ident
+        save_config(config)
+        emit(ev='probe', ok=True, protocol=protocol, name=given, url=url, saved=ident)
+        self.connect()
+        self.send_backends()
+
     def handle(self, request):
         op = request.get('op')
         if op == 'connect':
-            return self.connect()
+            self.connect()
+            return self.send_backends()
         if op == 'health':
             return self.check_health()
-        if not self.client:
+        if not self.client and op not in ('backends', 'probe', 'discover', 'save_backend', 'remove_backend', 'use_backend'):
             return emit(ev='error', op=op, id=request.get('id'), error='No assistant is connected')
         try:
             if op == 'chats':
@@ -689,6 +938,34 @@ class Bridge:
                 return emit(ev='approvals', approvals=self.client.approvals())
             if op == 'mode':
                 return emit(ev='mode', mode=self.client.mode(request.get('mode')).get('mode'))
+            if op == 'backends':
+                return self.send_backends()
+            if op == 'discover':
+                config, _ = load_config()
+                added = {(b.get('url') or '').rstrip('/') for b in config.get('backends') or []}
+                return emit(ev='discovered', apps=[a for a in discover() if a['url'].rstrip('/') not in added])
+            if op == 'probe':
+                protocol, name, url = probe(request.get('url') or '', request.get('token') or None)
+                return emit(ev='probe', ok=bool(protocol), protocol=protocol or '', name=name, url=url,
+                            detail='' if protocol else "Nothing at that address answers as an assistant (Tide AI API or OpenAI-compatible).")
+            if op == 'save_backend':
+                return self.save_backend(request)
+            if op == 'remove_backend':
+                config, _ = load_config()
+                config['backends'] = [b for b in config.get('backends') or [] if b.get('id') != request.get('id')]
+                for role in ('panel', 'island'):
+                    if config.get(role) == request.get('id'):
+                        config.pop(role)
+                save_config(config)
+                (SECRETS / f'{request.get("id")}.token').unlink(missing_ok=True)
+                self.connect()
+                return self.send_backends()
+            if op == 'use_backend':
+                config, _ = load_config()
+                config['panel'] = config['island'] = request.get('id')
+                save_config(config)
+                self.connect()
+                return self.send_backends()
             if op == 'app':
                 return emit(ev='app', id=request['id'], page=self.client.app(request['id'], request.get('view')))
             if op == 'call':
@@ -768,10 +1045,72 @@ class Bridge:
             last = chats
 
 
+APPROVALS_EVERY = 2
+
+
+class Approvals:
+    """When the assistant waits for your OK (`approvals`): the shell gets the list (the panel's cards), and each new one
+    is also a desktop notification with Approve and Deny, so it is seen even with the panel closed."""
+
+    def __init__(self, bridge):
+        self.bridge = bridge
+        self.known = {}  # id -> the notification's process
+
+    def watch(self):
+        last = None
+        while True:
+            time.sleep(APPROVALS_EVERY)
+            client = self.bridge.client
+            if not client or 'approvals' not in self.bridge.capabilities:
+                continue
+            try:
+                waiting = client.approvals()
+            except Failed:
+                continue
+            ids = {a.get('id') for a in waiting}
+            if waiting != last:
+                emit(ev='approvals', approvals=waiting)
+                last = waiting
+            for approval in waiting:
+                if approval.get('id') not in self.known:
+                    self.notify(approval)
+            for gone in set(self.known) - ids:
+                process = self.known.pop(gone)
+                if process and process.poll() is None:
+                    process.terminate()  # answered elsewhere (the panel, another window): its notification goes
+
+    def notify(self, approval):
+        scopes = approval.get('scopes') or ['once']
+        body = '\n'.join(filter(None, (approval.get('command') or '', approval.get('reason') or '')))[:600]
+        command = ['notify-send', '--app-name=' + (self.bridge.name or 'Assistant'), '--urgency=critical', '--wait',
+                   '--icon=dialog-question', '--action=once=Approve']
+        if 'task' in scopes:
+            command.append('--action=task=Approve for this task')
+        command += ['--action=deny=Deny', f'{self.bridge.name or "Assistant"} needs your OK: {approval.get("title") or "an action"}', body]
+        try:
+            process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True)
+        except OSError:
+            self.known[approval.get('id')] = None
+            return
+        self.known[approval.get('id')] = process
+        threading.Thread(target=self.answer, args=(approval, process), daemon=True).start()
+
+    def answer(self, approval, process):
+        choice = (process.communicate()[0] or '').strip()
+        if choice not in ('once', 'task', 'deny') or not self.bridge.client:
+            return  # dismissed: the panel still has it
+        try:
+            self.bridge.client.decide(approval['id'], 'deny' if choice == 'deny' else 'approve', 'once' if choice == 'deny' else choice)
+            emit(ev='approvals', approvals=self.bridge.client.approvals())
+        except Failed as exc:
+            emit(ev='error', op='decide', error=str(exc))
+
+
 def main():
     EchoCancel.clear_leftovers()
     bridge = Bridge()
     bridge.connect()
+    threading.Thread(target=Approvals(bridge).watch, daemon=True).start()
 
     def poll():
         while True:

@@ -1,37 +1,26 @@
-# Tide AI API — version 1 (draft)
+# Connecting an assistant to Tide
 
-Tide's AI panel, island and launcher can talk to any assistant. A backend connects in
-one of two ways:
+This file tells a coding agent how to connect **your** assistant to Tide, the desktop shell. Tide doesn't need to
+know anything about how your assistant works inside: it only talks to it at one address.
 
-| Way | What you build | What Tide shows |
+There are two ways in:
+
+| Way | What you build | What Tide does with it |
 | --- | --- | --- |
-| **OpenAI-compatible** | Nothing. LM Studio, Ollama, llama.cpp server, vLLM and Jan already serve `/v1/chat/completions`. | Chat only. Tide keeps the chat list itself. |
-| **Tide AI API** (this document) | A small HTTP API at one base URL. | Whatever your manifest says you support: chat history, approvals, live activity, voice, apps. |
+| **OpenAI-compatible** | Nothing, if your app already serves `/v1/models` and `/v1/chat/completions` (LM Studio, Ollama, llama.cpp server, vLLM, Jan) | Chat in the AI panel. Tide keeps the chat list itself. |
+| **Tide AI API** (the rest of this file) | A small HTTP API at one base URL, such as `http://127.0.0.1:8000/ai/v1` | Chat, plus whichever optional features you add below. Tide shows only the ones you list. |
 
-Tide never needs to know anything else about your system. Everything comes from one
-base URL, such as `http://127.0.0.1:3000/ai/v1`.
+To connect it: **Settings → AI → Add an assistant**, paste the address, press Connect. Tide works out which of the
+two your assistant speaks.
 
-Status: draft. Sections marked *(draft)* will be settled while Eve's implementation is built.
+## Instructions for the coding agent
 
----
-
-## Giving this to your coding agent
-
-Copy this whole file to your coding agent with a message like:
-
-> Add a Tide AI API (version 1) to my assistant, following this spec. Serve it under
-> `/ai/v1` on my existing server, bound to 127.0.0.1. Start with the required parts
-> (manifest and reply), then add each optional capability my assistant already has.
-> List in the manifest only what you actually implemented.
-
-What the agent must do:
-
-1. Serve `GET {base}` (the manifest) and `POST {base}/chats/{id}/reply` (a streamed reply). That is enough for Tide to chat.
-2. For each capability your assistant has, add its routes and list it in `capabilities`.
-3. Map your own data to the shapes below. Do not invent features: an empty list is fine, a made-up one is not.
-4. Check it: `python3 ~/.config/Tide/modes/dev/shell/scripts/ai-api-check.py {base}` *(coming with the first build step)* calls every route the manifest claims and reports what does not match.
-
-Then in Tide: **Settings → AI → Add backend**, type "Tide AI API", paste the base URL.
+1. Serve the **manifest** (`GET {base}`) and a **streamed reply** (`POST {base}/chats/{id}/reply`). That's enough for
+   Tide to chat with the assistant.
+2. Then add only the optional features the assistant can really do, and list each in the manifest's `capabilities`.
+   Leave out anything it can't do: Tide hides what isn't listed.
+3. Map the assistant's own data to the shapes below; don't invent data.
+4. Bind to 127.0.0.1, or require a bearer token if the API is reachable from other machines.
 
 ---
 
@@ -56,20 +45,18 @@ Then in Tide: **Settings → AI → Add backend**, type "Tide AI API", paste the
 {
   "api": "tide-ai",
   "version": 1,
-  "name": "Eve",
-  "capabilities": ["chat", "history", "cancel", "thinking", "attachments", "approvals",
-                   "mode", "power", "live", "voice.dictation", "voice.speech", "voice.call", "apps"],
-  "apps": [
-    { "id": "briefing", "name": "Daily briefing", "icon": "clock" },
-    { "id": "finance",  "name": "Finance",        "icon": "chart" }
-  ]
+  "name": "Nova",
+  "capabilities": ["chat", "history", "cancel"],
+  "apps": []
 }
 ```
 
-- `name` is what Tide calls the assistant everywhere ("Message Eve", "Eve is on").
-- Tide hides every control whose capability is missing. `chat` is the only required one.
-- `icon` is one of Tide's icon names: `clock`, `mic`, `book`, `download`, `chart`,
-  `calendar`, `server`, `mail`, `grid`, `folder`, `heart`, `star` *(draft list)*.
+- `name` is what Tide calls the assistant everywhere ("Message Nova").
+- `chat` is the only required capability. The optional ones are: `history`, `cancel`, `thinking`, `attachments`,
+  `approvals`, `mode`, `power`, `live`, `voice.dictation`, `voice.speech`, `voice.call`, `apps`, `appearance`, each
+  described below. Tide hides every control whose capability is missing.
+- `icon` (for apps) is one of: `clock`, `mic`, `book`, `download`, `chart`, `calendar`, `server`, `mail`, `grid`,
+  `folder`, `heart`, `star`.
 
 ## Health — optional, recommended
 
@@ -86,7 +73,7 @@ every 30 seconds while the panel is open.
 
 ```json
 {
-  "text": "Is the barbershop site up?",
+  "text": "Is my website up?",
   "think": false,
   "attachments": [ { "name": "error.png", "path": "/home/me/error.png", "mime": "image/png" } ],
   "history": [ { "role": "user", "text": "…" }, { "role": "assistant", "text": "…" } ]
@@ -106,14 +93,14 @@ The response is a stream of these events:
 | Event | Meaning |
 | --- | --- |
 | `{"type":"delta","text":"The site "}` | More answer text. |
-| `{"type":"step","op":"add","step":{"id":"s1","text":"Checking containers","icon":"containers","status":"running"}}` | A working step began. `icon`: `terminal`, `browser`, `containers`, `log`, `thought`, `tool`. |
+| `{"type":"step","op":"add","step":{"id":"s1","text":"Checking the server","icon":"terminal","status":"running"}}` | A working step began. `icon`: `terminal`, `browser`, `containers`, `log`, `thought`, `tool`. |
 | `{"type":"step","op":"update","id":"s1","delta":"…"}` | More text for a step (for example its reasoning). Instead of `delta` it may carry `text` (replaces the step's text) and `icon`. |
 | `{"type":"step","op":"done","id":"s1","status":"ok"}` | A step finished: `ok` or `error`. |
 | `{"type":"activity","text":"Reading the logs"}` | A one-line status. |
-| `{"type":"terminal","line":"$ docker ps","kind":"cmd"}` | A terminal line for the island. `kind`: `cmd`, `out`, `ok`. |
+| `{"type":"terminal","line":"$ uptime","kind":"cmd"}` | A terminal line. `kind`: `cmd`, `out`, `ok`. |
 | `{"type":"approval","approval":{…}}` | A decision is needed before going on (see Approvals). |
 | `{"type":"image","url":"…"}` | A picture to show in the reply (an http URL or a local path). |
-| `{"type":"done","text":"The site is up.","telemetry":{"ttftMs":420,"tokensPerSecond":41,"totalMs":8400}}` | The reply finished. `text` is the whole answer. `telemetry` and `images` (paths or URLs) are optional. |
+| `{"type":"done","text":"It's up.","telemetry":{"ttftMs":420,"tokensPerSecond":41,"totalMs":8400}}` | The reply finished. `text` is the whole answer. `telemetry` and `images` (paths or URLs) are optional. |
 | `{"type":"error","error":"…"}` | The reply failed. |
 | `{"type":"cancelled"}` | The reply was stopped. |
 
@@ -144,7 +131,7 @@ then ends with `cancelled`.
 ```json
 { "approvals": [ {
     "id": "a1", "chatId": "c1", "title": "Run a command on the host",
-    "command": "docker restart barbershop-web", "reason": "Why it needs your OK",
+    "command": "systemctl restart my-app", "reason": "Why it needs your OK",
     "risk": "high", "scopes": ["once", "task", "all"], "createdAt": 1795372888426 } ] }
 ```
 
@@ -164,18 +151,18 @@ For backends that can load and unload their model. `state`: `ready`, `starting`,
 ## Live activity — `live`
 
 `GET {base}/live` — a stream of `{"type":"live","busy":true,"request","chatId","activity","steps":[{"id","title","detail","kind","status"}],"terminal":[lines]}`,
-sent whenever something changes. `title` says the step in words ("Searching the web", "Reading a page", "Running a
-command", "Using her browser"), `detail` is what it was given (the search, the page, the command), `kind` is `web`,
-`browser`, `terminal`, `containers` or `tool`, `status` is `running`, `done` or `error`. Tide shows it in the island
-while a call is working: the titles under "Working", the details as lines in the island's terminal.
+sent whenever something changes. `title` says the step in words ("Searching the web", "Running a command"), `detail`
+is what it was given (the search, the command), `kind` is `web`, `browser`, `terminal`, `containers` or `tool`,
+`status` is `running`, `done` or `error`. During a call Tide shows the titles; only `terminal` steps open the
+island's terminal view (their `detail` as `$ command`, then `terminal` lines).
 
 ## Appearance — `appearance`
 
 `PUT {base}/appearance` with `{"accent","accent2","background","surface","text","muted"}` (`#rrggbb`) and `"font"`,
 `"mono"` (font names). Tide sends its current look (accent from the wallpaper) when it connects and when the wallpaper
-changes, so the assistant's own windows (Eve's browser) match the desktop. `GET {base}/appearance` returns it.
+changes, so any windows the assistant opens can match the desktop. `GET {base}/appearance` returns it.
 
-## Voice *(draft)*
+## Voice
 
 - `voice.dictation`: live dictation. `POST {base}/voice/dictation` → `{"id"}`. Then `POST …/{id}/audio` with raw
   16 kHz mono 16-bit PCM (about a quarter second per request) → `{"text","settled","tentative"}`: `text` is everything
@@ -185,8 +172,7 @@ changes, so the assistant's own windows (Eve's browser) match the desktop. `GET 
   sentences punctuated as a whole (re-recognize the paragraph, not each piece between pauses).
 - `voice.speech`: `POST {base}/voice/speech` with `{"text"}` answers with the voice itself: raw 16-bit PCM, with
   `X-Audio-Sample-Rate` and `X-Audio-Channels` headers, streamed as it is made; Tide plays it as it arrives.
-  Closing the stream or `POST {base}/voice/speech/stop` stops it. Tide's Listen button (on a `hero` block's `speak`)
-  uses it.
+  Closing the stream or `POST {base}/voice/speech/stop` stops it. Used by the play button under replies.
 - `voice.call`: a hands-free conversation in which the assistant listens while it talks (you can talk over it).
   `POST {base}/voice/call` → `{"id","rate","speechRate"}`. Stream the microphone as 16 kHz mono 16-bit PCM every
   ~100 ms to `POST …/{id}/audio` (an optional `X-Voice-Activity: 0-1` header is your VAD's speech chance), play
@@ -210,13 +196,11 @@ List them in the manifest (`"apps": [{"id","name","icon"}]`) and serve each one:
 
 ```json
 {
-  "title": "Finance", "subtitle": "November", "updatedAt": 1795372888426,
+  "title": "Status", "subtitle": "Today", "updatedAt": 1795372888426,
   "blocks": [
-    { "type": "stat", "label": "Spent in November", "value": "$1,240", "sub": "Income $2,577 · net $1,337" },
-    { "type": "progress", "label": "By category", "icon": "chart",
-      "items": [ { "label": "Groceries", "value": 410, "max": 380, "text": "$410", "tone": "critical" } ] },
-    { "type": "list", "label": "Recurring", "icon": "clock",
-      "items": [ { "title": "Rent", "sub": "3 months · steady", "trailing": "$1,449" } ] }
+    { "type": "stat", "label": "Requests today", "value": "1,240", "sub": "12 failed" },
+    { "type": "list", "label": "Recent", "icon": "clock",
+      "items": [ { "title": "Backup finished", "sub": "nightly job", "trailing": "2 h ago" } ] }
   ]
 }
 ```
@@ -226,7 +210,7 @@ card) and `icon` (one of the icon names under Manifest).
 
 | Block | Fields | Looks like |
 | --- | --- | --- |
-| `hero` | `eyebrow`, `title`, `text`, `footnote`, `speak` (text read aloud by Listen; needs `voice.speech`) | The large summary card at the top of a briefing |
+| `hero` | `eyebrow`, `title`, `text`, `footnote`, `speak` (text a Listen button reads aloud; needs `voice.speech`) | A large summary card |
 | `cards` | `items`: `{icon, label, value?, unit?, title?, sub?, tone?}` | Small cards two across: a big `value` ("58°" with `unit` "Clear") or a bold `title` |
 | `stat` | `value`, `sub?`, `bar?`: `{value, max}` | One big number, with an optional bar; past `max` the goal is marked and the extra shows in a second wallpaper color |
 | `progress` | `items`: `{label, value, max, text?, sub?, tone?}` | Labelled bars |
@@ -241,10 +225,10 @@ card) and `icon` (one of the icon names under Manifest).
 | `text` | `markdown` | A paragraph |
 
 A block's `tone` of `warning` or `critical` tints its card. An app page may also carry `views` (`[{id, name}]`, oldest
-first) and `view` (the one shown): Tide shows arrows to step through them and asks `GET {base}/apps/{id}?view=<id>`.
-Finance uses this for months.
+first) and `view` (the one shown): Tide shows arrows to step through them (months, for example) and asks
+`GET {base}/apps/{id}?view=<id>`.
 
-Chats that only exist to feed an app (a briefing, a mail log) should be left out of `GET {base}/chats`.
+Chats that only exist to feed an app (a daily report, a log) should be left out of `GET {base}/chats`.
 
 `chat` on an item opens that chat when clicked. `tone`: `normal`, `good`, `warning`, `critical`. Unknown block types
 are skipped, so an older Tide still shows the rest. Tide reloads an open app every 30 seconds.

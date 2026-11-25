@@ -16,12 +16,18 @@ Singleton {
     id: root
 
     // ---------- backend status (from the bridge) ----------
-    property string assistantName: "AI"      // the backend's own name (ai.json) when it has one
+    // Tide calls whatever assistant is connected "AI" everywhere (the owner, 2026-11-24: an assistant's own name, like
+    // Eve, is that person's, not Tide's); its own name shows only in Settings → AI.
+    readonly property string assistantName: "AI"
+    property string backendName: ""
     property bool configured: false     // ai.json names a backend
     property bool reachable: false      // the backend answers
     property bool ready: false          // and says it is ready (e.g. its model is loaded)
     property string detail: ""          // why not, in the backend's words
     property var capabilities: []
+    property string backendUrl: ""       // where the assistant answers (ai.json)
+    property string backendProtocol: ""  // ai-api | openai
+    property real checkedAt: 0           // when it last answered (status), for Settings
     readonly property bool connected: reachable && ready
     readonly property bool live: configured && reachable   // real data instead of the demo
     readonly property string integration: !configured ? "none" : assistantName
@@ -109,7 +115,7 @@ Singleton {
     function _stepWords(t) {
         if (/^web\b.*\b(search|at once)/i.test(t)) return "Searching the web";
         if (/^web\b.*\bread/i.test(t)) return "Reading a page";
-        if (/^browser/i.test(t)) return "Using her browser";
+        if (/^browser/i.test(t)) return "Using the browser";
         if (/^terminal/i.test(t)) return "Running a command";
         if (/^news/i.test(t)) return "Reading the news";
         return t.replace(/\s*•\s*/g, ": ");
@@ -148,7 +154,8 @@ Singleton {
             Eve.addStep(_stepWords(m.text), /^web\b/i.test(m.text) ? "browser" : /brows/i.test(m.text) ? "browser" : /contain|docker|stack|portainer/i.test(m.text) ? "containers" : /log/i.test(m.text) ? "log" : "terminal");
             break;
         case "approval":
-            Eve.say("Waiting for your OK. Open the AI panel to approve or deny it.", false);
+            Eve.say("Waiting for your OK: approve or deny it in the panel.", false);
+            open = true;
             break;
         case "chat":
             Eve.chatTitle = m.title || "";
@@ -176,6 +183,25 @@ Singleton {
     }
     Connections { target: Theme; function onAccentChanged() { lookTimer.restart(); } }
     Timer { id: lookTimer; interval: 1500; onTriggered: root._sendLook() }   // the accent crossfades: send where it lands
+
+    // ---------- assistants set up in Settings → AI (saved by the bridge to ~/.config/Tide/ai.json) ----------
+    property var backends: []            // [{ id, name, url, type, model, token }]
+    property string usingBackend: ""
+    property var probeResult: null       // { ok, protocol, name, url, detail, saved } after Connect
+    property bool probing: false
+    function listBackends() { _send({ op: "backends" }); }
+    property var discovered: []          // local AI apps found running ([{ name, url, protocol }])
+    function discover() { _send({ op: "discover" }); }
+    function addBackend(url, name, token) { probing = true; probeResult = null; _send({ op: "save_backend", url: url, name: name, token: token }); }
+    function removeBackend(id) { _send({ op: "remove_backend", id: id }); }
+    function useBackend(id) { _send({ op: "use_backend", id: id }); }
+
+    // ---------- approvals: the assistant waits for your OK (`approvals`); cards in the panel, and a notification ----------
+    property var approvals: []           // [{ id, chatId, title, command, reason, risk, scopes }]
+    function decide(id, decision, scope) {
+        approvals = approvals.filter(a => a.id !== id);
+        _send({ op: "decide", approval: id, decision: decision, scope: scope || "once" });
+    }
 
     // ---------- read aloud (the backend's `voice.speech`) ----------
     property bool speaking: false
@@ -209,8 +235,11 @@ Singleton {
         try { m = JSON.parse(line); } catch (e) { return; }
         switch (m.ev) {
         case "manifest":
-            assistantName = m.name || "Assistant";
+            backendName = m.name || "";
             capabilities = m.capabilities || [];
+            backendUrl = m.url || "";
+            backendProtocol = m.protocol || "ai-api";
+            checkedAt = Date.now();
             configured = true;
             apps = (m.apps || []).map(a => ({ id: a.id, name: a.name, icon: appIcons[a.icon] || appIcons.grid }));
             loadChats();
@@ -219,6 +248,8 @@ Singleton {
             if (can("mode")) _send({ op: "mode" });
             break;
         case "status":
+            if (m.connected) checkedAt = Date.now();
+            if (!backends.length) listBackends();
             const was = live;
             configured = m.configured;
             reachable = m.connected;
@@ -239,6 +270,25 @@ Singleton {
         case "call":
             _call(m);
             break;
+        case "backends":
+            backends = m.backends || [];
+            usingBackend = m.using || "";
+            if (!backends.length) _showDemo();
+            break;
+        case "discovered":
+            discovered = m.apps || [];
+            break;
+        case "probe":
+            probing = false;
+            probeResult = m;
+            break;
+        case "approvals": {
+            const before = approvals.map(a => a.id);
+            approvals = m.approvals || [];
+            // a new one during a call opens the panel, where its card is (the island has no buttons for it)
+            if (calling && approvals.some(a => before.indexOf(a.id) < 0)) open = true;
+            break;
+        }
         case "live":
             _live(m);
             break;
@@ -271,7 +321,7 @@ Singleton {
 
     function _showDemo() {
         chats = demoChats; projects = demoProjects; apps = demoApps; homeCards = demoCards;
-        assistantName = "Assistant"; capabilities = [];
+        backendName = ""; capabilities = [];
     }
 
     // backend chats → the panel's shape, keeping messages already loaded

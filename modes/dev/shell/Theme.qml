@@ -155,8 +155,6 @@ Singleton {
 
     readonly property int workspaceCount: opt("workspaceCount", 5)
     readonly property string audioApp: opt("audioApp", "pavucontrol")
-    readonly property string aiToggleUrl: opt("aiToggleUrl", "http://127.0.0.1:5200/toggle")
-    readonly property string aiWindowClass: opt("aiWindowClass", "ai-copilot-panel")
     readonly property string recordStopCommand: opt("recordStopCommand", "pkill -INT -x wf-recorder")
     readonly property int updatesEveryMinutes: opt("updatesEveryMinutes", 30)
     // control center output buttons: part of each PipeWire sink's name

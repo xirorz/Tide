@@ -41,29 +41,12 @@ qs -p $Q ipc call eve end                                        # or leave it o
 
 There is also a global shortcut, `tide:eve` (start / end), not bound to a key yet.
 
-## 2. Hear the user's buttons (island → Eve)
+## 2. A connected assistant
 
-Set commands in `theme.json` under `"eveHooks"` (the comments below are only for
-this guide; JSON has none). Each runs with `sh -c`, with
-`$1` = `muted` or `unmuted`:
-
-```json
-"eveHooks": {
-  "start": "",   // user started Eve (launcher row, tide:eve, or `ipc call eve start`)
-  "end":   "",   // user pressed the red X
-  "mute":  "",   // user toggled the mic button ($1 is the new state)
-  "type":  ""    // user pressed "type instead"
-}
-```
-
-## 3. Turn off the preview
-
-`"eveDemo": true` plays the design's preview loop when Eve is started and no
-`start` hook is set. Set it to `false` once Eve drives the island (setting a
-`start` hook also stops the preview from running).
-
-Files: `shell/services/Eve.qml` (state, IPC, hooks, preview) and
-`shell/island/EveLive.qml` (the view).
+With an assistant set up in Settings → AI that takes calls (`voice.call` in the Tide AI API, see
+`~/.config/Tide/docs/AI-API.md`), starting live mode (Super+Alt+E, the launcher row) opens a call and
+`services/EveData.qml` drives everything above itself. An assistant without calls opens the AI panel
+instead. The old `eveHooks` commands and the `eveDemo` preview loop are gone (2026-11-24).
 
 ## Island priority (how Eve shares the island)
 
