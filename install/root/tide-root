@@ -5,7 +5,9 @@ root) with a polkit action that names it in the password window. Tide's own tool
 it through pkexec; each step checks its arguments and does only that one thing.
 
   tide-root power-setup <uid>        the battery's charge limit becomes this user's to
-                                     change (a udev rule, now and at every start)
+                                     change (a udev rule, now and at every start), and
+                                     the boot unit sets the kept limit again
+  tide-root power-boot <uid>         (the boot unit) set this user's kept charge limit
   tide-root login-setup <uid> <gid>  SilentSDDM's .user file, backgrounds/tide/ and the
                                      login screen's font folder become this user's
   tide-root login-use                make SilentSDDM the login screen
@@ -16,6 +18,7 @@ import configparser, glob, ipaddress, os, pwd, shutil, subprocess, sys
 from pathlib import Path
 
 RULE = Path("/etc/udev/rules.d/90-tide-charge-limit.rules")
+UNIT = Path("/etc/systemd/system/tide-charge-limit.service")
 THEME = Path("/usr/share/sddm/themes/silent")
 TIDE_DIR = THEME / "backgrounds" / "tide"
 FONT_DIR = Path("/usr/local/share/fonts/tide")
@@ -37,10 +40,37 @@ def thresholds():
 def power_setup(uid):
     pw = user(uid)
     RULE.write_text("# Tide (Settings → Power): the battery's charge limit can be changed by user %d\n"
-                    'ACTION=="add", SUBSYSTEM=="power_supply", KERNEL=="BAT*", '
+                    'ACTION=="add|change", SUBSYSTEM=="power_supply", KERNEL=="BAT*", '
                     'RUN+="/bin/chown %d /sys%%p/charge_control_end_threshold"\n' % (pw.pw_uid, pw.pw_uid))
     for f in thresholds():
         os.chown(f, pw.pw_uid, -1)
+    # the battery forgets the limit at every start: set it again at boot, as root, so it
+    # doesn't depend on the file's owner (the user's login sets it again too)
+    UNIT.write_text("[Unit]\nDescription=Tide: the battery's charge limit (Settings → Power)\n"
+                    "After=systemd-udev-settle.service local-fs.target\n\n"
+                    "[Service]\nType=oneshot\nExecStart=/usr/lib/tide/tide-root power-boot %d\n\n"
+                    "[Install]\nWantedBy=multi-user.target\n" % pw.pw_uid)
+    subprocess.run(["systemctl", "daemon-reload"], check=False)
+    subprocess.run(["systemctl", "enable", UNIT.name], check=False, capture_output=True)
+    subprocess.run(["udevadm", "control", "--reload"], check=False)
+    return 0
+
+
+def power_boot(uid):
+    pw = user(uid)
+    kept = Path(pw.pw_dir) / ".local/state/tide/charge-limit"
+    try:
+        pct = int(kept.read_text().strip()[:4])
+    except (OSError, ValueError):
+        return 0
+    if not 50 <= pct <= 100:
+        return 0
+    for f in thresholds():
+        try:
+            Path(f).write_text(str(pct))
+            os.chown(f, pw.pw_uid, -1)
+        except OSError:
+            pass
     return 0
 
 
@@ -120,6 +150,8 @@ def main(a):
     try:
         if a[:1] == ["power-setup"] and len(a) == 2:
             return power_setup(a[1])
+        if a[:1] == ["power-boot"] and len(a) == 2:
+            return power_boot(a[1])
         if a[:1] == ["login-setup"] and len(a) == 3:
             return login_setup(a[1], a[2])
         if a == ["login-use"]:
