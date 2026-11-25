@@ -688,6 +688,41 @@ PanelWindow {
                             }
                         }
                     }
+                    // the name: fix it here (Enter) and the art search uses it
+                    RowLayout {
+                        Layout.fillWidth: true
+                        spacing: gl.u(10)
+                        Rectangle {
+                            Layout.fillWidth: true
+                            implicitHeight: gl.u(38); radius: gl.u(11)
+                            color: Qt.rgba(0, 0, 0, 0.35)
+                            border.width: 1; border.color: nameIn.activeFocus ? Theme.accent : Theme.white(0.12)
+                            TextInput {
+                                id: nameIn
+                                anchors.fill: parent; anchors.leftMargin: gl.u(14); anchors.rightMargin: gl.u(14)
+                                verticalAlignment: TextInput.AlignVCenter
+                                clip: true
+                                color: Theme.text; font.family: Theme.sans; font.pixelSize: gl.u(13.5)
+                                text: Games.artGame ? Games.artGame.title : ""
+                                onAccepted: if (text.trim() && Games.artGame && text.trim() !== Games.artGame.title) Games.renameGame(text)
+                                Keys.onEscapePressed: Games.artGame = null
+                            }
+                        }
+                        HoverButton {
+                            implicitWidth: renT.implicitWidth + gl.u(28); implicitHeight: gl.u(38); radius: gl.u(11)
+                            color: Theme.white(0.07)
+                            enabled: !!Games.artGame && nameIn.text.trim() !== "" && nameIn.text.trim() !== Games.artGame.title
+                            opacity: enabled ? 1 : 0.5
+                            onClicked: Games.renameGame(nameIn.text)
+                            Text { id: renT; anchors.centerIn: parent; text: "Rename"; color: Theme.text2; font.family: Theme.sans; font.pixelSize: gl.u(12.5) }
+                        }
+                    }
+                    Text {
+                        visible: Games.artMatch !== "" && !Games.artBusy
+                        Layout.fillWidth: true; elide: Text.ElideRight
+                        text: "SteamGridDB found: " + Games.artMatch + " (not it? rename the game above)"
+                        color: Theme.muted; font.family: Theme.sans; font.pixelSize: gl.u(12)
+                    }
                     Text {
                         visible: Games.artBusy || Games.artError !== ""
                         Layout.fillWidth: true; wrapMode: Text.WordWrap

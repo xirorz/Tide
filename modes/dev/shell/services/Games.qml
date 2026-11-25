@@ -61,11 +61,12 @@ Singleton {
                 const d = JSON.parse(text());
                 root.favs = d.favs || []; root.pauseAi = d.pauseAi !== false; root.played = d.played || {}; root.emuRun = d.emuRun || null;
                 root.showApps = d.showApps === true;
+                root.artAdult = d.artAdult === true;
                 root.lutris = d.lutris !== false;
             } catch (e) {}
         }
     }
-    function saveState() { sf.setText(JSON.stringify({ favs: favs, pauseAi: pauseAi, played: played, emuRun: emuRun, showApps: showApps, lutris: lutris }, null, 2)); }
+    function saveState() { sf.setText(JSON.stringify({ favs: favs, pauseAi: pauseAi, played: played, emuRun: emuRun, showApps: showApps, lutris: lutris, artAdult: artAdult }, null, 2)); }
     // Lutris's games (read from its own library); Settings → Games can turn them off
     property bool lutris: true
     property bool lutrisFound: false
@@ -269,11 +270,15 @@ Singleton {
     property var artGame: null              // the game whose art is being chosen
     property string artKind: "cover"        // cover | hero
     property var artChoices: []
+    property string artMatch: ""            // the game SteamGridDB found for the name
+    // adult art (SteamGridDB's NSFW): off unless turned on in Settings → Games
+    property bool artAdult: false
+    function setArtAdult(on) { artAdult = on; saveState(); }
     property bool artBusy: false
     property string artError: ""
     function chooseArt(g, kind) {
-        artGame = g; artKind = kind || "cover"; artChoices = []; artError = ""; artBusy = true;
-        artFind.command = ["python3", "-I", artTool, "find", artKind, g.title, g.platform === "steam" ? String(g.appid || "") : ""];
+        artGame = g; artKind = kind || "cover"; artChoices = []; artMatch = ""; artError = ""; artBusy = true;
+        artFind.command = ["python3", "-I", artTool, "find", artKind, g.title, g.platform === "steam" ? String(g.appid || "") : "", artAdult ? "1" : "0"];
         artFind.running = true;
     }
     Process {
@@ -283,8 +288,9 @@ Singleton {
                 root.artBusy = false;
                 let d; try { d = JSON.parse(text); } catch (e) { root.artError = "SteamGridDB didn't answer"; return; }
                 if (d.error) { root.artError = d.error; return; }
-                root.artChoices = d;
-                if (!d.length) root.artError = "No " + (root.artKind === "cover" ? "covers" : "banners") + " for this game yet";
+                root.artChoices = d.items || [];
+                root.artMatch = d.match || "";
+                if (!root.artChoices.length) root.artError = "No " + (root.artKind === "cover" ? "covers" : "banners") + " for this game yet";
             }
         }
     }
@@ -293,6 +299,24 @@ Singleton {
         artBusy = true;
         artSet.command = ["python3", "-I", artTool, "set", artGame.id, artKind, url];
         artSet.running = true;
+    }
+    // a better name for a game (emulator files often have odd ones): shown everywhere,
+    // and the art search uses it
+    function renameGame(title) {
+        if (!artGame || artName.running) return;
+        artName.title = title.trim();
+        artName.command = ["python3", "-I", artTool, "name", artGame.id, artName.title];
+        artName.running = true;
+    }
+    Process {
+        id: artName
+        property string title: ""
+        onExited: code => {
+            if (code !== 0 || !root.artGame) return;
+            const g = Object.assign({}, root.artGame, { title: artName.title || root.artGame.title });
+            root.refresh();
+            root.chooseArt(g, root.artKind);
+        }
     }
     function resetArt() {
         if (!artGame || artSet.running) return;

@@ -7,8 +7,11 @@
 #
 #   artdb.py has-key                     true / false
 #   artdb.py set-key                     the key on standard input ("" removes it)
-#   artdb.py find <kind> <title> [appid] up to 12 choices: [{thumb, url}]
-#                                        kind: cover (600x900) | hero (wide banner)
+#   artdb.py find <kind> <title> [appid] [adult]
+#                                        {match: the game SteamGridDB found, items:
+#                                        up to 12 [{thumb, url}]}; kind: cover (600x900)
+#                                        | hero (wide banner); adult: 1 includes adult art
+#   artdb.py name <game id> <title>      show the game under this name ("" = its own)
 #   artdb.py set <game id> <kind> <url>  download it and use it for that game
 #   artdb.py reset <game id>             back to the game's own art
 import hashlib, json, os, sys, urllib.parse, urllib.request
@@ -38,30 +41,33 @@ def get(path):
         return json.load(r)
 
 
-def find(kind, title, appid=""):
+def find(kind, title, appid="", adult=False):
     if not key():
         return out({"error": "Add your SteamGridDB API key in Settings → Games first"})
     what = "grids" if kind == "cover" else "heroes"
-    q = "?dimensions=600x900" if kind == "cover" else ""
+    q = "?" + "&".join((["dimensions=600x900"] if kind == "cover" else []) + (["nsfw=any"] if adult else []))
+    match = ""
     try:
         d = None
         if appid and appid.isdigit():
             try:
                 d = get(f"/{what}/steam/{appid}{q}")
+                match = title
             except urllib.error.HTTPError:
                 d = None
         if not d or not d.get("data"):
             s = get("/search/autocomplete/" + urllib.parse.quote(title, safe=""))
             if not s.get("data"):
-                return out({"error": f"SteamGridDB doesn't know \"{title}\""})
+                return out({"error": f"SteamGridDB doesn't know \"{title}\". Try another name (rename it above)."})
+            match = s["data"][0].get("name", "")
             d = get(f"/{what}/game/{s['data'][0]['id']}{q}")
     except urllib.error.HTTPError as e:
         return out({"error": "SteamGridDB refused the key (check it in Settings → Games)" if e.code in (401, 403) else f"SteamGridDB answered {e.code}"})
     except (urllib.error.URLError, TimeoutError, ValueError) as e:
         return out({"error": "Couldn't reach SteamGridDB"})
     items = [{"thumb": a.get("thumb") or a.get("url"), "url": a.get("url")}
-             for a in d.get("data", []) if a.get("url") and not a.get("nsfw") and not a.get("humor")]
-    out(items[:12])
+             for a in d.get("data", []) if a.get("url") and (adult or not a.get("nsfw")) and not a.get("humor")]
+    out({"match": match, "items": items[:12]})
 
 
 def chosen():
@@ -99,13 +105,32 @@ def set_art(gid, kind, url):
     out({"ok": True, "path": str(dest)})
 
 
-def reset(gid):
+def name(gid, title):
     c = chosen()
-    for p in (c.pop(gid, {}) or {}).values():
-        try:
-            Path(p).unlink()
-        except OSError:
-            pass
+    title = title.strip()[:120]
+    if title:
+        c.setdefault(gid, {})["title"] = title
+    elif gid in c:
+        c[gid].pop("title", None)
+        if not c[gid]:
+            del c[gid]
+    save(c)
+    out({"ok": True})
+
+
+def reset(gid):
+    """Back to the game's own art (a new name stays)."""
+    c = chosen()
+    g = c.get(gid, {})
+    for kind in ("cover", "hero"):
+        p = g.pop(kind, None)
+        if p:
+            try:
+                Path(p).unlink()
+            except OSError:
+                pass
+    if gid in c and not g:
+        del c[gid]
     save(c)
     out({"ok": True})
 
@@ -124,7 +149,9 @@ def main(a):
                 f.write(k + "\n")
         return out({"ok": True})
     if a[:1] == ["find"] and len(a) >= 3 and a[1] in ("cover", "hero"):
-        return find(a[1], a[2], a[3] if len(a) > 3 else "")
+        return find(a[1], a[2], a[3] if len(a) > 3 else "", len(a) > 4 and a[4] == "1")
+    if a[:1] == ["name"] and len(a) == 3:
+        return name(a[1], a[2])
     if a[:1] == ["set"] and len(a) == 4 and a[2] in ("cover", "hero"):
         return set_art(a[1], a[2], a[3])
     if a[:1] == ["reset"] and len(a) == 2:

@@ -41,6 +41,12 @@ ColumnLayout {
                 onDone: v => { if (v.trim()) { Games.saveArtKey(v.trim()); text = ""; } }
             }
         }
+        SRow {
+            visible: Games.artKey
+            label: "Include adult art"
+            sub: "Art SteamGridDB marks as adult shows in the choices too (off by default)"
+            SToggle { on: Games.artAdult; onToggled: Games.setArtAdult(!on) }
+        }
         // only with the AI features on (Settings → AI): it's about the local AI's memory
         SRow {
             visible: Theme.aiEnabled
