@@ -83,6 +83,9 @@ Singleton {
     // minutes, 0 = never: dim, lock, screens off, suspend
     property var timings: ({ dim: 0, lock: 0, dpms: 0, suspend: 0 })
     property bool running: false
+    // true once hypridle.conf has been read: until then the timings above are only
+    // placeholders, and Power must not save them as the plugged-in times
+    property bool loaded: false
     function read() { reader.running = true; }
     Process {
         id: reader
@@ -90,7 +93,7 @@ Singleton {
         command: ["python3", "-I", Quickshell.shellDir + "/scripts/hypridle.py", "read"]
         stdout: StdioCollector {
             onStreamFinished: {
-                try { const d = JSON.parse(text); root.timings = d.timings; root.running = d.running; } catch (e) {}
+                try { const d = JSON.parse(text); if (d.timings) { root.timings = d.timings; root.loaded = true; } root.running = d.running; } catch (e) {}
             }
         }
     }
