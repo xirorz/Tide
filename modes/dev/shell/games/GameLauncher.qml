@@ -823,7 +823,7 @@ PanelWindow {
                         ClippingRectangle {
                             width: gl.u(56); height: gl.u(74); radius: gl.u(10)
                             color: "#18181B"
-                            Image { anchors.fill: parent; source: parent.parent.parent.parent.a.game.cover ? (parent.parent.parent.parent.a.game.cover.startsWith("/") ? "file://" : "") + parent.parent.parent.parent.a.game.cover : ""; fillMode: Image.PreserveAspectCrop; asynchronous: true; sourceSize.width: 120 }
+                            Image { anchors.fill: parent; readonly property string c: Games.installAsk && Games.installAsk.game.cover ? Games.installAsk.game.cover : ""; source: c ? (c.startsWith("/") ? "file://" : "") + c : ""; fillMode: Image.PreserveAspectCrop; asynchronous: true; sourceSize.width: 120 }
                         }
                         Column {
                             anchors.verticalCenter: parent.verticalCenter
