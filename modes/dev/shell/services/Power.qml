@@ -140,15 +140,16 @@ Singleton {
             }
         }
         // the password window has to be seen: Settings steps aside while it's asked
-        onExited: Games.picking = false
+        onExited: if (root.limitAside) { root.limitAside = false; IslandState.stepBack(); }
     }
     property bool chargeLimitWritable: false
+    property bool limitAside: false
     // the battery forgets the limit at every start: set the kept one again at login
     Component.onCompleted: Quickshell.execDetached([powerTool, "apply"])
     function setChargeLimit(pct) {
         if (limitProc.running) return;
         // only the first change asks for the password (then Settings steps aside for it)
-        if (!chargeLimitWritable) Games.picking = true;
+        if (!chargeLimitWritable) { limitAside = true; IslandState.stepAside(); }
         limitProc.command = [powerTool, "charge-limit", String(pct)];
         limitProc.running = true;
     }

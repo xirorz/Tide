@@ -110,7 +110,7 @@ Singleton {
     function allowFind() {
         if (!fw.cmd || allower.running) return;
         allowError = "";
-        Games.picking = true;             // the password window must be in front of Settings
+        IslandState.stepAside();          // the password window must be in front of Settings
         allower.running = true;
     }
     Process {
@@ -119,7 +119,7 @@ Singleton {
         // an older install runs the command bambu.py printed
         command: root.hasHelper ? ["pkexec", "/usr/lib/tide/tide-root", "firewall-allow"] : ["pkexec", "sh", "-c", root.fw.cmd || "true"]
         onExited: code => {
-            Games.picking = false;        // Settings comes back (it stepped aside for the password)
+            IslandState.stepBack();       // Settings comes back (it stepped aside for the password)
             if (code === 0) root.find();
             else root.allowError = code === 126 || code === 127 ? "Cancelled, or not allowed to change the firewall" : "The firewall command failed (exit " + code + ")";
         }
