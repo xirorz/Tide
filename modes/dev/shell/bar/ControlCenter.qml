@@ -47,7 +47,7 @@ Item {
             netProc.running = true;
             wifiProc.running = true;
             savedProc.running = true;
-            pwFor = ""; pwError = "";
+            pwFor = ""; pwError = ""; optsFor = "";
             forceActiveFocus();
         }
         Notifications.markSeen();
@@ -103,12 +103,15 @@ Item {
         command: ["nmcli", "-t", "-f", "IN-USE,SSID,SECURITY", "device", "wifi", "list"]
         stdout: StdioCollector {
             onStreamFinished: {
+                // a network is listed once per access point: one row each, connected if
+                // any of its access points is the one in use
                 const seen = {}, rows = [];
                 for (const l of text.split("\n")) {
                     const f = cc.nmSplit(l);
-                    if (!f[1] || seen[f[1]]) continue;
-                    seen[f[1]] = true;
-                    rows.push({ name: f[1], inUse: f[0] === "*", security: f[2] || "", secure: (f[2] || "") !== "" && f[2] !== "--" });
+                    if (!f[1]) continue;
+                    if (seen[f[1]]) { if (f[0] === "*") seen[f[1]].inUse = true; continue; }
+                    seen[f[1]] = { name: f[1], inUse: f[0] === "*", security: f[2] || "", secure: (f[2] || "") !== "" && f[2] !== "--" };
+                    rows.push(seen[f[1]]);
                 }
                 rows.sort((a, b) => b.inUse - a.inUse);
                 cc.wifiRows = rows.slice(0, 8);
@@ -121,11 +124,13 @@ Item {
     property var savedWifi: ({})
     Process {
         id: savedProc
-        command: ["nmcli", "-t", "-f", "NAME,TYPE", "connection", "show"]
+        // only profiles that have connected at least once count as saved: a failed
+        // first try (no password) leaves an empty profile behind, which isn't one
+        command: ["nmcli", "-t", "-f", "NAME,TYPE,TIMESTAMP", "connection", "show"]
         stdout: StdioCollector {
             onStreamFinished: {
                 const s = {};
-                for (const l of text.split("\n")) { const f = cc.nmSplit(l); if (f[1] === "802-11-wireless") s[f[0]] = true; }
+                for (const l of text.split("\n")) { const f = cc.nmSplit(l); if (f[1] === "802-11-wireless" && f[2] && f[2] !== "0") s[f[0]] = true; }
                 cc.savedWifi = s;
             }
         }
@@ -133,8 +138,11 @@ Item {
     property string pwFor: ""           // the network whose password box is open
     property string pwError: ""
     property bool pwBusy: false
+    // the connected network: a click shows Disconnect and Forget under it
+    property string optsFor: ""
     function pickWifi(row) {
-        if (row.inUse) return;
+        if (row.inUse) { pwFor = ""; optsFor = optsFor === row.name ? "" : row.name; return; }
+        optsFor = "";
         if (row.secure && !savedWifi[row.name]) {
             pwError = "";
             pwFor = pwFor === row.name ? "" : row.name;
@@ -155,6 +163,18 @@ Item {
             if (code === 0) { cc.pwFor = ""; cc.pwError = ""; }
             else cc.pwError = joinOut.text.trim() || "Couldn't connect";
         }
+    }
+    Process { id: wifiAct; onExited: { cc.optsFor = ""; netProc.running = true; wifiProc.running = true; savedProc.running = true; Net.refresh(); } }
+    function disconnectWifi() {
+        if (!cc.wifiDevice) return;
+        wifiAct.command = ["nmcli", "device", "disconnect", cc.wifiDevice];
+        wifiAct.running = true;
+    }
+    // forget: the profile the Wi-Fi is using goes (its saved password with it)
+    function forgetWifi() {
+        if (!cc.wifiDevice) return;
+        wifiAct.command = ["sh", "-c", "c=$(nmcli -g GENERAL.CONNECTION device show \"$1\") && [ -n \"$c\" ] && nmcli connection delete id \"$c\"", "sh", cc.wifiDevice];
+        wifiAct.running = true;
     }
     function joinWifi(row, password) {
         if (joinProc.running || !password) return;
@@ -390,6 +410,15 @@ Item {
                         sub: wrow.connected ? "Connected" : cc.savedWifi[wrow.modelData.name] ? "Saved" : wrow.modelData.secure ? "Secured" : "Open"
                         trailing: wrow.connected ? Icons.check : wrow.modelData.secure ? Icons.lock : Icons.chevronRight
                         onClicked: cc.pickWifi(wrow.modelData)
+                    }
+                    // connected: Disconnect, or Forget (removes the saved password too)
+                    Row {
+                        visible: wrow.connected && cc.optsFor === wrow.modelData.name
+                        Layout.leftMargin: Theme.s(8)
+                        Layout.bottomMargin: Theme.s(4)
+                        spacing: Theme.s(8)
+                        SegmentButton { label: "Disconnect"; onClicked: cc.disconnectWifi() }
+                        SegmentButton { label: "Forget"; onClicked: cc.forgetWifi() }
                     }
                     // the password box: Enter connects; a wrong password says so here
                     Rectangle {
