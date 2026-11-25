@@ -730,6 +730,11 @@ PanelWindow {
                         text: Games.artError || (Games.artChoices.length ? "Saving…" : "Looking on SteamGridDB…")
                         color: Games.artError ? Theme.red : Theme.soft; font.family: Theme.sans; font.pixelSize: gl.u(12.5)
                     }
+                    Text {
+                        visible: Games.artNote !== "" && !Games.artBusy && Games.artError === ""
+                        text: "✓ " + Games.artNote + (Games.artKind === "cover" && !Games.artApplied.hero ? " · pick a banner too, or Close" : Games.artKind === "hero" && !Games.artApplied.cover ? " · pick a cover too, or Close" : "")
+                        color: Theme.accent; font.family: Theme.sans; font.pixelSize: gl.u(12.5)
+                    }
                     Flow {
                         visible: Games.artChoices.length > 0
                         Layout.fillWidth: true
@@ -744,7 +749,8 @@ PanelWindow {
                                 height: wide ? width * 0.32 : width * 1.5
                                 radius: gl.u(12)
                                 color: "#18181B"
-                                border.width: pickHover.hovered ? 2 : 0; border.color: Theme.accent
+                                readonly property bool applied: Games.artApplied[Games.artKind] === modelData.url
+                                border.width: pickHover.hovered || applied ? 3 : 0; border.color: Theme.accent
                                 Image { anchors.fill: parent; source: pick.modelData.thumb; fillMode: Image.PreserveAspectCrop; asynchronous: true }
                                 HoverHandler { id: pickHover; cursorShape: Qt.PointingHandCursor }
                                 TapHandler { onTapped: Games.pickArt(pick.modelData.url) }

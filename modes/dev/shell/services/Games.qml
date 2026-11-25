@@ -280,7 +280,7 @@ Singleton {
     // (the game keeps its own name; a typed search skips the Steam id match)
     property string artSearch: ""
     function chooseArt(g, kind, search) {
-        if (g !== artGame) artSearch = "";
+        if (g !== artGame) { artSearch = ""; artApplied = ({}); artNote = ""; }
         if (search !== undefined) artSearch = search.trim() === g.title ? "" : search.trim();
         artGame = g; artKind = kind || "cover"; artChoices = []; artMatch = ""; artError = ""; artBusy = true;
         artFind.command = ["python3", "-I", artTool, "find", artKind, artSearch || g.title,
@@ -300,25 +300,39 @@ Singleton {
             }
         }
     }
+    // what was applied while the picker is open (it stays open: cover, then banner, …)
+    property var artApplied: ({})           // kind -> url
+    property string artNote: ""
     function pickArt(url) {
         if (!artGame || artSet.running) return;
-        artBusy = true;
+        artBusy = true; artNote = "";
+        artSet.url = url; artSet.kind = artKind;
         artSet.command = ["python3", "-I", artTool, "set", artGame.id, artKind, url];
         artSet.running = true;
     }
     function resetArt() {
         if (!artGame || artSet.running) return;
+        artSet.url = ""; artSet.kind = "";
         artSet.command = ["python3", "-I", artTool, "reset", artGame.id];
         artSet.running = true;
     }
     Process {
         id: artSet
+        property string url: ""
+        property string kind: ""
         stdout: StdioCollector {
             onStreamFinished: {
                 root.artBusy = false;
                 let d; try { d = JSON.parse(text); } catch (e) { d = { error: "Couldn't save it" }; }
                 if (d.error) { root.artError = d.error; return; }
-                root.artGame = null;
+                // applied: the picker stays open for the other kind; Close when done
+                if (artSet.kind) {
+                    root.artApplied = Object.assign({}, root.artApplied, { [artSet.kind]: artSet.url });
+                    root.artNote = (artSet.kind === "cover" ? "Cover" : "Banner") + " applied";
+                } else {
+                    root.artApplied = ({});
+                    root.artNote = "Back to the game's own art";
+                }
                 root.refresh();
             }
         }
