@@ -8,6 +8,11 @@ turned off. The shell itself is in `modes/dev/shell`; its full notes are in
 
 ![Tide on a 4K screen](docs/screenshots/desktop.jpg)
 
+**The island in action**: the clock in the middle of the bar turns into whatever you need, then back.
+Launcher and inline math, the calculator, the volume pop-up, wallpapers, themes, the power menu and voice dictation:
+
+![The island morphing between tools](docs/screenshots/island-tour.webp)
+
 ## Screenshots
 
 Close-ups at full size (taken on a 4K screen, interface at 115%), so the text is readable.
