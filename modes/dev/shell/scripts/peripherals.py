@@ -121,8 +121,8 @@ while True:
         names = sorted(os.listdir(ROOT))
     except OSError:
         names = []
-    for dev in names:
-        p = os.path.join(ROOT, dev)
+    for name in names:
+        p = os.path.join(ROOT, name)
         if read(p, "scope") != "Device" or read(p, "type") != "Battery":
             continue
         if read(p, "present") == "0":
@@ -131,9 +131,19 @@ while True:
         if not cap.isdigit():
             continue
         model = read(p, "model_name")
-        k = kind(dev, model)
+        k = kind(name, model)
         if not k:
             continue
+        # what's kept is keyed by the device (its model, and serial when it has one),
+        # not the kernel's name for it, which changes when it's plugged in again
+        serial = read(p, "serial_number")
+        dev = model + ("#" + serial if serial else "") if model else name
+        moved = False
+        for d in (levels, charges, rates):
+            if name in d and name != dev:
+                d.setdefault(dev, d[name]); del d[name]; moved = True
+        if moved:
+            keep()
         status = read(p, "status")
         reported = int(cap)
         charging = status == "Charging"
@@ -154,7 +164,7 @@ while True:
             if not full and levels.get(dev) != pct:
                 levels[dev] = pct
                 keep()
-        out.append({"id": dev, "kind": k, "model": model, "percent": pct,
+        out.append({"id": name, "kind": k, "model": model, "percent": pct,
                     "charging": charging or full and dev in charges, "full": pct >= 100 and (charging or full),
                     "estimated": estimated})
     line = json.dumps(out)
