@@ -49,6 +49,8 @@ Singleton {
         function start(tool: string): void { root.start(tool); }
         function stop(): void { root.transcribing(); }
         function transcribing(): void { root.transcribing(); }
+        // stopping a recording, and whose it is ("Saved to notes" or "Copied to clipboard")
+        function stopping(tool: string): void { root.tool = tool; root.transcribing(); }
         function done(): void { root.done(); }
         function cancel(): void { root.cancel(); }
         function error(): void { root.error(); }
