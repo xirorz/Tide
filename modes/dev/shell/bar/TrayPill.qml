@@ -46,6 +46,53 @@ Pill {
                 brightness: 1.0
             }
 
+            // hover: the app's name (and what its tooltip says, when that's more) in a small
+            // toast under the icon, like the device battery toast. Apps name themselves in
+            // different places: a title ("qBittorrent"), only a tooltip ("Claude"), or an id
+            // ("TelegramDesktop", "privateinternetaccess"); the most readable one wins.
+            readonly property string tipText: (btn.modelData.tooltipTitle || "").split("\n")[0].trim()
+            readonly property string appName: {
+                const d = btn.modelData;
+                const words = n => n.replace(/[_-]+/g, " ").replace(/([a-z]{2,})([A-Z])/g, "$1 $2")
+                                     .replace(/\b(status icon|client|tray|indicator)\b/gi, "").replace(/\s+\d+$/, "").trim();
+                const title = (d.title || "").trim();
+                const tipHead = tipText.split(":")[0].trim();
+                // a run-together lowercase title the tooltip spells out ("privateinternetaccess")
+                if (title && tipHead && tipHead.replace(/\s+/g, "").toLowerCase() === title.toLowerCase()) return tipHead;
+                if (title) return words(title);
+                if (tipHead) return tipHead;
+                return words(d.id || "");
+            }
+            // what the tooltip adds after the name (speeds, status), on the same line: not
+            // when it only repeats the name ("Telegram Desktop (3)", "Shield TV launcher")
+            readonly property string appMore: {
+                const t = tipText.replace(/\u00a0/g, " ");
+                if (!t) return "";
+                const low = t.toLowerCase(), name = appName.toLowerCase();
+                if (low.indexOf(name + ":") === 0) return t.slice(appName.length + 1).trim();
+                if (low.indexOf(name) === 0) return "";
+                return t;
+            }
+            Item {
+                visible: btn.hovered && btn.appName !== ""
+                width: toastCol.implicitWidth + Theme.s(20)
+                height: toastCol.implicitHeight + Theme.s(12)
+                x: (btn.width - width) / 2
+                y: Theme.s(36)
+                z: 10
+                Surface { anchors.fill: parent; kind: "panel"; radius: Theme.s(10) }
+                Text {
+                    id: toastCol
+                    anchors.centerIn: parent
+                    textFormat: Text.StyledText
+                    text: btn.appName.charAt(0).toUpperCase() + btn.appName.slice(1)
+                          + (btn.appMore ? " <font color='" + Theme.muted + "'>· " + btn.appMore.replace(/&/g, "&amp;").replace(/</g, "&lt;") + "</font>" : "")
+                    color: Theme.text
+                    font.family: Theme.sans
+                    font.pixelSize: Theme.s(12)
+                }
+            }
+
             onClicked: mouse => {
                 if (mouse.button === Qt.LeftButton && !btn.modelData.onlyMenu) btn.modelData.activate();
                 else if (mouse.button === Qt.MiddleButton) btn.modelData.secondaryActivate();
