@@ -76,13 +76,24 @@ Singleton {
         id: savedFile
         path: Quickshell.env("HOME") + "/.local/state/tide/power.json"
         printErrors: false
-        onLoaded: { try { root.saved = JSON.parse(text()) || {}; } catch (e) { root.saved = {}; } root.savedLoaded = true; root.follow(); }
+        onLoaded: {
+            try { root.saved = JSON.parse(text()) || {}; } catch (e) { root.saved = {}; }
+            // a file saved before Idle had read its times holds all zeros ("Never"):
+            // dropped, not restored
+            if (root.saved.idle && Object.keys(root.saved.idle).every(k => !root.saved.idle[k])) delete root.saved.idle;
+            root.savedLoaded = true; root.follow();
+        }
         onLoadFailed: { root.savedLoaded = true; root.follow(); }
     }
     function save(d) { saved = d; savedFile.setText(JSON.stringify(d, null, 2)); }
     onOnBatteryChanged: follow()
+    // also when the battery is first ready (booting on the charger with "on battery"
+    // left in the file) and once Idle has read its times
+    readonly property bool batteryReady: !!dev && dev.ready && dev.isLaptopBattery
+    onBatteryReadyChanged: follow()
+    Connections { target: Idle; function onLoadedChanged() { root.follow(); } }
     function follow() {
-        if (!savedLoaded || !dev || !dev.ready || !dev.isLaptopBattery) return;
+        if (!savedLoaded || !Idle.loaded || !batteryReady) return;
         const d = Object.assign({}, saved);
         if (onBattery && !d.battery) {
             d.battery = true;
