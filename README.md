@@ -6,6 +6,56 @@ an update center and a login screen manager. Lightweight, and every feature can 
 turned off. The shell itself is in `modes/dev/shell`; its full notes are in
 `modes/dev/README.md`.
 
+![Tide on a 4K screen](docs/screenshots/desktop.jpg)
+
+## Screenshots
+
+Close-ups at full size (taken on a 4K screen, interface at 115%), so the text is readable.
+
+**The island**: the clock in the middle of the bar morphs into everything else.
+
+| | |
+|---|---|
+| ![Launcher](docs/screenshots/launcher.png) | ![All apps](docs/screenshots/all-apps.png) |
+| Launcher: recent apps and quick tools | Show all apps, A to Z |
+| ![Math in the launcher](docs/screenshots/launcher-math.png) | ![Calculator](docs/screenshots/calculator.png) |
+| Type math in the launcher | Calculator |
+| ![Power menu](docs/screenshots/power-menu.png) | ![Themes](docs/screenshots/themes.png) |
+| Power menu | Themes (modes) |
+| ![Wallpapers](docs/screenshots/wallpapers.png) | ![Island at rest](docs/screenshots/island.png) |
+| Wallpapers (images and videos) | The island at rest |
+
+**Resource center**: GPU, CPU, memory, disk, network and processes, no terminal needed.
+
+![Resource center](docs/screenshots/resource-center.png)
+
+**Bar, control center and update center**
+
+| | | |
+|---|---|---|
+| ![Control center](docs/screenshots/control-center.png) | ![Update center](docs/screenshots/updates.png) | ![Bar](docs/screenshots/bar-right.png) |
+| Control center | Update center (hold back any package) | The bar's right side |
+
+**Game launcher**: Steam, emulators and Lutris in one place; right-click a game for SteamGridDB art.
+
+![Game launcher](docs/screenshots/game-launcher.jpg)
+![Game art from SteamGridDB](docs/screenshots/game-art.jpg)
+
+**Settings**
+
+| | |
+|---|---|
+| ![Appearance](docs/screenshots/settings-appearance.png) | ![Monitors](docs/screenshots/settings-monitors.png) |
+| Appearance | Monitors |
+| ![Games](docs/screenshots/settings-games.png) | ![Login screen](docs/screenshots/settings-login-screen.png) |
+| Games | Login screen (SilentSDDM) |
+| ![Keybinds](docs/screenshots/settings-keybinds.png) | ![Terminal greeting](docs/screenshots/terminal-greeting.png) |
+| Keybinds | Terminal greeting |
+
+**Desktop widgets**
+
+![Widgets](docs/screenshots/widgets.jpg)
+
 ## Install
 
 On an Arch-based system (Arch, CachyOS, EndeavourOS…):
