@@ -61,10 +61,15 @@ ask "File manager (Super+E)" "${O[@]}"; FILES=$ANSWER; EXTRA+=($(pkgs_of "$ANSWE
 # here, Skip keeps it; with none, one has to be picked (--yes takes the first)
 O=("kitty|Kitty|kitty" "alacritty|Alacritty|alacritty" "foot|Foot|foot" "ghostty|Ghostty|ghostty" "wezterm|WezTerm|wezterm")
 HAVE_TERM=""
-for t in kitty alacritty foot ghostty wezterm; do if command -v "$t" >/dev/null; then HAVE_TERM=$t; break; fi; done
+# the one Tide already uses (a reinstall), else the first one here
+cur=$(python3 -I -c 'import json,sys; print(json.load(open(sys.argv[1])).get("terminal", ""))' "$HERE/modes/dev/theme.json" 2>/dev/null)
+for t in $cur kitty alacritty foot ghostty wezterm; do if command -v "$t" >/dev/null; then HAVE_TERM=$t; break; fi; done
 if [ -n "$HAVE_TERM" ]; then O+=("skip|Skip (keep $HAVE_TERM)|"); fi
 ask "Terminal (Super+Enter)" "${O[@]}"; TERMINAL=$ANSWER; EXTRA+=($(pkgs_of "$ANSWER" "${O[@]}"))
 if [ "$TERMINAL" = skip ]; then TERMINAL=$HAVE_TERM; fi
+# what a terminal shows when it opens (Settings → Appearance → Terminal can change it)
+O=("tide|Tide's breaking wave, in your wallpaper's colours|" "pokemon|A random Pokémon each time|pokemon-colorscripts-git")
+ask "Terminal greeting" "${O[@]}"; GREETING=$ANSWER; EXTRA+=($(pkgs_of "$ANSWER" "${O[@]}"))
 # Bluetooth: only when the PC has it (no question)
 BLUETOOTH=no
 if [ -n "$(ls /sys/class/bluetooth 2>/dev/null)" ]; then BLUETOOTH=yes; EXTRA+=(bluez bluez-utils); say "Bluetooth: this PC has it, so it's set up"; fi
@@ -289,19 +294,20 @@ say "wallpapers go in ~/wallpapers (Super+W)"
 # the terminal greeting (Settings → Appearance → Terminal): Tide's wave, one line in
 # your shell's startup file
 if [ $DRY = 1 ]; then say "would add Tide's terminal greeting to your shell's startup"
-else "$HERE/bin/tide-greet" install >/dev/null; say "terminal greeting: Tide's wave (Settings → Appearance)"; fi
+else "$HERE/bin/tide-greet" install >/dev/null; say "terminal greeting: $([ "$GREETING" = pokemon ] && echo "a random Pokémon" || echo "Tide's wave") (Settings → Appearance)"; fi
 
 # ---- your choices as Tide's defaults ----
 step "Your apps"
 if [ $DRY = 1 ]; then say "would set Tide's terminal to $TERMINAL and file manager to $FILES"
 else
-    python3 -I - "$HERE/modes/dev/theme.json" "$TERMINAL" "$FILES" <<'PY'
+    python3 -I - "$HERE/modes/dev/theme.json" "$TERMINAL" "$FILES" "$GREETING" <<'PY'
 import json, sys, os
-p, term, files = sys.argv[1:]
+p, term, files, greeting = sys.argv[1:]
 try: d = json.load(open(p))
 except Exception: d = {}
 d["terminal"] = term
 if files != "skip": d["fileManager"] = files
+d["terminalGreeting"] = greeting
 os.makedirs(os.path.dirname(p), exist_ok=True)
 json.dump(d, open(p, "w"), indent=2)
 PY
