@@ -15,6 +15,7 @@ import glob, json, os, subprocess, sys
 from pathlib import Path
 
 RULE = "/etc/udev/rules.d/90-tide-charge-limit.rules"
+HELPER = "/usr/lib/tide/tide-root"
 KEPT = Path.home() / ".local/state/tide/charge-limit"
 
 
@@ -34,8 +35,11 @@ def current():
         return 100
 
 
-def status():
-    print(json.dumps({"supported": bool(files()), "limit": current(), "writable": writable()}))
+def status(note=None):
+    d = {"supported": bool(files()), "limit": current(), "writable": writable()}
+    if note:
+        d["note"] = note
+    print(json.dumps(d))
     return 0
 
 
@@ -54,9 +58,17 @@ def set_limit(pct):
     except ValueError:
         print(json.dumps({"error": "The limit is a percent (50-100)"}))
         return 1
+    note = None
     if not writable():
-        # once: let this user change it from now on (one password prompt)
-        r = subprocess.run(["pkexec", os.path.abspath(__file__), "root-setup", str(os.getuid())], capture_output=True, text=True)
+        # once: let this user change it from now on (one password prompt). Tide's root
+        # helper (/usr/lib/tide, put there by the installer) does it; an install from
+        # before the helper falls back to this file once and says to run the installer
+        if os.path.exists(HELPER):
+            cmd = ["pkexec", HELPER, "power-setup", str(os.getuid())]
+        else:
+            cmd = ["pkexec", os.path.abspath(__file__), "root-setup", str(os.getuid())]
+            note = "Run Tide's installer again so the password window names Tide's own helper"
+        r = subprocess.run(cmd, capture_output=True, text=True)
         if r.returncode != 0 or not writable():
             print(json.dumps({"error": "Not changed" if r.returncode in (126, 127) else (r.stderr.strip()[-200:] or "Couldn't change it")}))
             return 1
@@ -67,7 +79,7 @@ def set_limit(pct):
         return 1
     KEPT.parent.mkdir(parents=True, exist_ok=True)
     KEPT.write_text(str(pct) + "\n")
-    return status()
+    return status(note)
 
 
 def apply():
@@ -84,7 +96,8 @@ def apply():
 
 
 def root_setup(uid):
-    """As root (pkexec), once: the threshold files belong to this user, now and at every start."""
+    """As root (pkexec), once: the threshold files belong to this user, now and at every start.
+    Only for installs without Tide's root helper (/usr/lib/tide/tide-root)."""
     if os.geteuid() != 0:
         return 1
     uid = int(uid)

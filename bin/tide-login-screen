@@ -22,6 +22,7 @@ import configparser, glob, json, os, re, shutil, subprocess, sys, tempfile
 from pathlib import Path
 
 THEME = Path("/usr/share/sddm/themes/silent")
+HELPER = "/usr/lib/tide/tide-root"
 VIDEO = re.compile(r"\.(mp4|webm|mkv|mov|avi)$", re.I)
 IMAGE = re.compile(r"\.(png|jpe?g|webp|bmp)$", re.I)      # no gif: the theme says it can crash SDDM
 KEYS = (("LockScreen", "background"), ("LoginScreen", "background"))
@@ -77,7 +78,13 @@ def ready():
 def setup():
     if ready():
         return None
-    r = subprocess.run(["pkexec", os.path.abspath(__file__), "root-setup", str(os.getuid()), str(os.getgid())], capture_output=True, text=True)
+    # Tide's root helper (/usr/lib/tide, from the installer); an older install falls back
+    # to this file
+    if os.path.exists(HELPER):
+        cmd = ["pkexec", HELPER, "login-setup", str(os.getuid()), str(os.getgid())]
+    else:
+        cmd = ["pkexec", os.path.abspath(__file__), "root-setup", str(os.getuid()), str(os.getgid())]
+    r = subprocess.run(cmd, capture_output=True, text=True)
     if r.returncode in (126, 127):
         return "Not changed (no password given)"
     if r.returncode != 0 or not ready():
@@ -339,7 +346,8 @@ def root_setup(uid, gid):
 
 
 def use():
-    r = subprocess.run(["pkexec", os.path.abspath(__file__), "root-use"], capture_output=True, text=True)
+    cmd = ["pkexec", HELPER, "login-use"] if os.path.exists(HELPER) else ["pkexec", os.path.abspath(__file__), "root-use"]
+    r = subprocess.run(cmd, capture_output=True, text=True)
     if r.returncode != 0:
         print(json.dumps({"error": "Not changed" if r.returncode in (126, 127) else (r.stderr.strip()[-300:] or "Couldn't change it")}))
         return 1

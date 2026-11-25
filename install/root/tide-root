@@ -1,0 +1,137 @@
+#!/usr/bin/env python3
+"""Tide's steps that need the password, as root. The installer puts this file in
+/usr/lib/tide/ (owned by root, so no program running as you can change what runs as
+root) with a polkit action that names it in the password window. Tide's own tools call
+it through pkexec; each step checks its arguments and does only that one thing.
+
+  tide-root power-setup <uid>        the battery's charge limit becomes this user's to
+                                     change (a udev rule, now and at every start)
+  tide-root login-setup <uid> <gid>  SilentSDDM's .user file, backgrounds/tide/ and the
+                                     login screen's font folder become this user's
+  tide-root login-use                make SilentSDDM the login screen
+  tide-root firewall-allow           let a printer's announcements (UDP 2021) in from
+                                     the local network (ufw or firewalld)
+"""
+import configparser, glob, ipaddress, os, pwd, shutil, subprocess, sys
+from pathlib import Path
+
+RULE = Path("/etc/udev/rules.d/90-tide-charge-limit.rules")
+THEME = Path("/usr/share/sddm/themes/silent")
+TIDE_DIR = THEME / "backgrounds" / "tide"
+FONT_DIR = Path("/usr/local/share/fonts/tide")
+
+
+def user(uid):
+    """A real login user (not root or a system account)."""
+    uid = int(uid)
+    pw = pwd.getpwuid(uid)
+    if uid < 1000:
+        raise ValueError("not a login user")
+    return pw
+
+
+def thresholds():
+    return sorted(glob.glob("/sys/class/power_supply/BAT*/charge_control_end_threshold"))
+
+
+def power_setup(uid):
+    pw = user(uid)
+    RULE.write_text("# Tide (Settings → Power): the battery's charge limit can be changed by user %d\n"
+                    'ACTION=="add", SUBSYSTEM=="power_supply", KERNEL=="BAT*", '
+                    'RUN+="/bin/chown %d /sys%%p/charge_control_end_threshold"\n' % (pw.pw_uid, pw.pw_uid))
+    for f in thresholds():
+        os.chown(f, pw.pw_uid, -1)
+    return 0
+
+
+def theme_config():
+    meta = configparser.ConfigParser(interpolation=None)
+    try:
+        meta.read(THEME / "metadata.desktop")
+        rel = meta.get("SddmGreeterTheme", "ConfigFile", fallback="theme.conf").strip()
+    except configparser.Error:
+        rel = "theme.conf"
+    p = (THEME / rel).resolve()
+    if THEME.resolve() not in p.parents:
+        raise ValueError("the theme's config is outside the theme")
+    return p
+
+
+def login_setup(uid, gid):
+    pw = user(uid)
+    gid = int(gid)
+    if not THEME.is_dir():
+        return 1
+    TIDE_DIR.mkdir(exist_ok=True)
+    FONT_DIR.mkdir(parents=True, exist_ok=True)
+    os.chown(FONT_DIR, pw.pw_uid, gid)
+    os.chmod(FONT_DIR, 0o755)
+    u = Path(str(theme_config()) + ".user")
+    if u.is_symlink():
+        return 1
+    if u.is_file() and not Path(str(u) + ".before-tide").exists():
+        shutil.copy2(u, str(u) + ".before-tide")
+    text = u.read_text() if u.is_file() else "; Tide's login screen settings (Settings → Login screen), read on top of the theme's config\n"
+    # backgrounds Tide put in backgrounds/ before: into tide/
+    for f in (THEME / "backgrounds").glob("tide-*"):
+        if f.is_file() and not f.is_symlink():
+            shutil.move(str(f), TIDE_DIR / f.name)
+            text = text.replace(f'"{f.name}"', f'"tide/{f.name}"')
+    u.write_text(text)
+    for p in [TIDE_DIR, u] + [x for x in TIDE_DIR.iterdir() if not x.is_symlink()]:
+        os.chown(p, pw.pw_uid, gid)
+    os.chmod(TIDE_DIR, 0o755)
+    os.chmod(u, 0o644)
+    return 0
+
+
+def login_use():
+    if not THEME.is_dir():
+        return 1
+    d = Path("/etc/sddm.conf.d")
+    d.mkdir(exist_ok=True)
+    (d / "zz-tide-theme.conf").write_text("# Tide: SilentSDDM as the login screen (Settings → Login screen)\n[Theme]\nCurrent=silent\n")
+    return 0
+
+
+def firewall_allow():
+    def active(unit):
+        return subprocess.run(["systemctl", "is-active", "--quiet", unit]).returncode == 0
+    if active("ufw"):
+        subnet = "any"
+        try:
+            dev = subprocess.run(["ip", "-4", "route", "show", "default"], capture_output=True, text=True).stdout.split()
+            dev = dev[dev.index("dev") + 1]
+            addr = subprocess.run(["ip", "-4", "-o", "addr", "show", "dev", dev], capture_output=True, text=True).stdout.split()
+            subnet = str(ipaddress.ip_interface(addr[addr.index("inet") + 1]).network)
+        except (ValueError, IndexError):
+            pass
+        return subprocess.run(["ufw", "allow", "proto", "udp", "from", subnet, "to", "any", "port", "2021"]).returncode
+    if active("firewalld"):
+        r = subprocess.run(["firewall-cmd", "--add-port=2021/udp", "--permanent"]).returncode
+        return r or subprocess.run(["firewall-cmd", "--reload"]).returncode
+    return 0
+
+
+def main(a):
+    if os.geteuid() != 0:
+        print("tide-root: runs as root (through pkexec)", file=sys.stderr)
+        return 1
+    try:
+        if a[:1] == ["power-setup"] and len(a) == 2:
+            return power_setup(a[1])
+        if a[:1] == ["login-setup"] and len(a) == 3:
+            return login_setup(a[1], a[2])
+        if a == ["login-use"]:
+            return login_use()
+        if a == ["firewall-allow"]:
+            return firewall_allow()
+    except (ValueError, KeyError, OSError) as e:
+        print(f"tide-root: {e}", file=sys.stderr)
+        return 1
+    print(__doc__, file=sys.stderr)
+    return 2
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))
