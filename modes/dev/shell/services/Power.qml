@@ -155,7 +155,14 @@ Singleton {
         if (warnAt > 0 && pct <= warnAt && warned > warnAt) {
             warned = warnAt;
             const saver = saverAtWarning && hasProfiles && profile !== "saver";
-            if (saver) setProfile("saver");
+            if (saver) {
+                // remembered like "Power saver on battery" does, so plugging in brings it back
+                const d = Object.assign({}, saved);
+                if (!d.profile) d.profile = profile;
+                d.battery = true;
+                save(d);
+                setProfile("saver");
+            }
             Quickshell.execDetached(["notify-send", "-a", "Tide", "-i", "battery-low", "Battery low", pct + "% left. Plug in soon." + (saver ? " Switched to Power saver." : "")]);
         } else if (pct <= 5 && warned > 5) {
             warned = 5;
