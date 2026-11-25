@@ -19,6 +19,13 @@ for t in obs-voice whisper-paste; do
 done
 bin="$HOME/.local/bin/$tool"
 pidf="${XDG_STATE_HOME:-$HOME/.local/state}/$tool/rec.pid"
+# dictation uses your own scripts (~/.local/bin/whisper-paste, obs-voice); without them
+# the keys say so instead of flashing an error on the island
+if [[ ! -x "$bin" ]]; then
+    [[ "$action" == stop ]] || notify-send -a Tide "Voice dictation isn't set up" \
+        "Super+R and Super+Shift+R run ~/.local/bin/whisper-paste and obs-voice (whisper.cpp). Add those scripts to use dictation."
+    exit 0
+fi
 island() { qs -p "$shell_dir" ipc call voice "$@" >/dev/null 2>&1; }
 # what happened, for troubleshooting: ~/.local/state/tide/voice.log
 log() { mkdir -p "$HOME/.local/state/tide"; echo "$(date '+%F %T') $tool: $*" >> "$HOME/.local/state/tide/voice.log"; }
