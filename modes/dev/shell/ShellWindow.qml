@@ -18,7 +18,7 @@ PanelWindow {
     WlrLayershell.namespace: Theme.surface === "glass" ? "tide-shell" : "tide-shell-dark"
     WlrLayershell.layer: WlrLayer.Top
     // Settings steps aside while a file picker (Games.pick) is open, so it can take input
-    readonly property bool settingsShown: IslandState.settingsOpen && !Games.picking
+    readonly property bool settingsShown: IslandState.settingsOpen && !Games.picking && !IslandState.steppedAside
     WlrLayershell.keyboardFocus: island.grabs || bar.panelOpen || settingsShown ? WlrKeyboardFocus.Exclusive : WlrKeyboardFocus.None
 
     // while the island or a bar panel is open the whole layer takes input,
@@ -56,7 +56,7 @@ PanelWindow {
 
     Settings {
         anchors.centerIn: parent
-        visible: !Games.picking
+        visible: !Games.picking && !IslandState.steppedAside
     }
 
     Island {

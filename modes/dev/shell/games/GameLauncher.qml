@@ -23,7 +23,7 @@ PanelWindow {
     WlrLayershell.keyboardFocus: WlrKeyboardFocus.Exclusive
     WlrLayershell.namespace: "tide-games"
     color: "#050507"
-    visible: !Games.picking
+    visible: !Games.picking && !IslandState.steppedAside
 
     // The design is a 1440 × 900 full-screen view: every size scales with the screen
     // (2.4× on a 4K monitor), so the launcher reads the same on any display.

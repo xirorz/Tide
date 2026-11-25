@@ -39,11 +39,13 @@ ColumnLayout {
     property var pending: ({})
     function opt(k) { return pending[k] !== undefined ? pending[k] : (opts[k] || ""); }
     function change(k, v) { const p = Object.assign({}, pending); if (opts[k] === v) delete p[k]; else p[k] = v; pending = p; }
+    property bool aside: false
+    function stepAside() { if (!aside) { aside = true; IslandState.stepAside(); } }
     function applyOptions() {
         if (busy || !changes) return;
         busy = true;
         // only the very first time needs your password: then Settings steps aside for it
-        if (!st.ready) { message = "Asking for your password…"; Games.picking = true; } else message = "Applying…";
+        if (!st.ready) { message = "Asking for your password…"; stepAside(); } else message = "Applying…";
         setProc.command = [tool, "set-options"].concat(Object.keys(pending).map(k => k + "=" + pending[k]))
             .concat(pendingBg ? ["background=" + pendingBg] : []);
         setProc.running = true;
@@ -61,7 +63,7 @@ ColumnLayout {
     function use() {
         if (busy) return;
         busy = true; message = "Asking for your password…";
-        Games.picking = true;            // the password window needs the screen (Settings hides)
+        stepAside();                     // the password window needs the screen (Settings hides)
         setProc.command = [tool, "use"];
         setProc.running = true;
     }
@@ -74,7 +76,7 @@ ColumnLayout {
         id: setProc
         stdout: StdioCollector {
             onStreamFinished: {
-                Games.picking = false;
+                if (ls.aside) { ls.aside = false; IslandState.stepBack(); }
                 ls.busy = false;
                 let d = {};
                 try { d = JSON.parse(text); } catch (e) { d = { error: "Couldn't change it" }; }

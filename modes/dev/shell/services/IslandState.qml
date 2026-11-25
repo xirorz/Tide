@@ -132,6 +132,12 @@ Singleton {
         settingsOpen = true;
     }
     function closeSettings() { settingsOpen = false; }
+    // a password window (pkexec) has to be seen: Settings and the game launcher step
+    // aside while one is up. Counted, so two at once can't bring them back early.
+    property int asideCount: 0
+    readonly property bool steppedAside: asideCount > 0
+    function stepAside() { asideCount++; }
+    function stepBack() { asideCount = Math.max(0, asideCount - 1); }
     function toggle(m) {
         if (mode === m) close();
         else open(m, "");
