@@ -156,12 +156,11 @@ ColumnLayout {
     SCard {
         title: "Terminal"
         SRow {
-            label: "Greeting"
-            sub: "What a terminal shows when it opens. Tide's wave takes your wallpaper's colours."
-            SSegment {
-                options: [{ label: "Tide", value: "tide" }, { label: "Pokémon", value: "pokemon" }, { label: "Distro", value: "distro" }, { label: "Minimal", value: "minimal" }, { label: "Off", value: "off" }]
-                value: Theme.opt("terminalGreeting", "tide")
-                onPicked: v => ap.setGreeting(v)
+            label: "Pokémon instead of Tide's wave"
+            sub: "What a terminal shows when it opens: Tide's breaking wave in your wallpaper's colours, or a random Pokémon"
+            SToggle {
+                on: Theme.opt("terminalGreeting", "tide") === "pokemon"
+                onToggled: ap.setGreeting(on ? "tide" : "pokemon")
             }
         }
         SRow {

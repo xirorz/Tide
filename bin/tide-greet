@@ -3,12 +3,11 @@
 # The choice is "terminalGreeting" in ~/.config/Tide/modes/dev/theme.json:
 #   tide       the breaking wave, in the wallpaper's colors (the default)
 #   pokemon    a random Pokémon (pokemon-colorscripts, installed when picked)
-#   distro     the distro's own logo (plain fastfetch)
-#   minimal    one line: the time and how long the computer has been on
-#   off        nothing
+# Tide has one greeting, its own; Pokémon is the one alternative. Anyone who wants
+# something else takes Tide's line out (tide-greet uninstall) and adds their own.
 #
 #   tide-greet                 show it (the shell runs this at startup)
-#   tide-greet tide|pokemon|…  show that one (Settings' preview)
+#   tide-greet tide|pokemon    show that one
 #   tide-greet install         add the one startup line to your shell (fish, bash, zsh)
 #   tide-greet uninstall       take it out again
 TIDE="$HOME/.config/Tide"
@@ -68,19 +67,8 @@ show_tide() {
         --logo-color-2 "$(mix "$p" "$bg" 0.3)" --logo-color-3 "$(mix "$p" "$bg" 0.55)" \
         --color-keys "$p" --color-title "$p"
 }
-show_minimal() {
-    local p up
-    p=$(css primary); p=${p:-#3c8ce0}
-    up=$(uptime -p 2>/dev/null | sed 's/^up //')
-    printf '\e[38;2;%d;%d;%dm≈\e[0m \e[1mtide\e[0m \e[2m·\e[0m %s \e[2m·\e[0m up %s\n' \
-        "0x${p:1:2}" "0x${p:3:2}" "0x${p:5:2}" "$(date '+%a %-I:%M %p')" "$up"
-}
-
 show() {
     case "$1" in
-        off) ;;
-        minimal) show_minimal ;;
-        distro) exec fastfetch ;;
         pokemon)
             if command -v pokemon-colorscripts >/dev/null; then pokemon-colorscripts -r --no-title; echo
             else show_tide; fi ;;
@@ -91,7 +79,7 @@ show() {
 case "${1:-}" in
     install) install_hook ;;
     uninstall) uninstall_hook ;;
-    tide|pokemon|distro|minimal|off) show "$1" ;;
+    tide|pokemon) show "$1" ;;
     "") choice=$(sed -n 's/.*"terminalGreeting": *"\([a-z]*\)".*/\1/p' "$conf" 2>/dev/null | head -1)
         show "${choice:-tide}" ;;
     *) sed -n '2,13s/^# \{0,1\}//p' "$0" >&2; exit 2 ;;
