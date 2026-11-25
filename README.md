@@ -16,9 +16,9 @@ cd Tide
 ./install.sh
 ```
 
-It asks only three things, with nothing pre-picked: your web browser and file manager
-(or skip, to keep what you have) and your terminal. It asks for an AUR helper too if the
-PC has none. Bluetooth is set up only when the PC has it. `./install.sh --yes` asks
+It asks only a few things, with nothing pre-picked: your web browser and file manager
+(or skip, to keep what you have), your terminal, and the terminal greeting (Tide's wave
+or a random Pokémon). It asks for an AUR helper too if the PC has none. Bluetooth is set up only when the PC has it. `./install.sh --yes` asks
 nothing and installs only what Tide needs.
 
 Then the installer checks the PC, installs whatever is missing (from the
@@ -41,3 +41,10 @@ only your PC needs (its hardware, apps, startup programs) go in `hypr/local.lua`
 - Fonts (SIL Open Font License, licences next to each in `fonts/`): Inter, Geist,
   DM Sans, IBM Plex Sans, Space Grotesk, Orbitron, Monoton, JetBrains Mono, Fredoka
 - Steam helper: `vendor/ugos-steam` (built into `bin/tide-steam`)
+
+## Support
+
+Tide is free and stays free. If it's useful to you and you'd like to say thanks, you
+can buy me a coffee — completely optional, and appreciated.
+
+[![Support Tide on Ko-fi](https://img.shields.io/badge/Ko--fi-Support%20Tide-ff5e5b?logo=ko-fi&logoColor=white)](https://ko-fi.com/xirorz)
