@@ -37,7 +37,7 @@ only your PC needs (its hardware, apps, startup programs) go in `hypr/local.lua`
 
 ## Credits
 
-- Login screen theme: [SilentSDDM](https://github.com/uiriansan/SilentSDDM) by uiriansan (GPL-2.0)
+- Login screen theme: [SilentSDDM](https://github.com/uiriansan/SilentSDDM) by uiriansan (GPL-3.0), installed from its own AUR package (`sddm-silent-theme`); Tide ships none of its files and only writes its own settings file next to the theme
 - Fonts (SIL Open Font License, licences next to each in `fonts/`): Inter, Geist,
   DM Sans, IBM Plex Sans, Space Grotesk, Orbitron, Monoton, JetBrains Mono, Fredoka
 - Steam helper: `vendor/ugos-steam` (built into `bin/tide-steam`)
