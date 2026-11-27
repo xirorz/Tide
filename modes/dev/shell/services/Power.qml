@@ -32,11 +32,22 @@ Singleton {
     }
 
     // ---- power mode ----
-    property bool hasProfiles: false
-    Process { running: true; command: ["sh", "-c", "busctl --system status net.hadess.PowerProfiles >/dev/null 2>&1 || busctl --system status org.freedesktop.UPower.PowerProfiles >/dev/null 2>&1"]; onExited: code => root.hasProfiles = code === 0 }
-    readonly property string profile: PowerProfiles.profile === PowerProfile.PowerSaver ? "saver" : PowerProfiles.profile === PowerProfile.Performance ? "performance" : "balanced"
-    readonly property bool hasPerformance: PowerProfiles.hasPerformanceProfile
+    // PowerProfiles is only touched once the daemon owns its name: asking for it earlier
+    // starts the daemon over D-Bus, and at boot that start waits for the network, which
+    // held the whole shell for the 25 s D-Bus timeout.
+    property bool profilesReady: false
+    readonly property bool hasProfiles: profilesReady
+    Process {
+        id: profilesCheck
+        running: true
+        command: ["sh", "-c", "for n in net.hadess.PowerProfiles org.freedesktop.UPower.PowerProfiles; do busctl --system call org.freedesktop.DBus /org/freedesktop/DBus org.freedesktop.DBus NameHasOwner s $n 2>/dev/null | grep -q 'b true' && exit 0; done; exit 1"]
+        onExited: code => root.profilesReady = code === 0
+    }
+    Timer { interval: 5000; repeat: true; running: !root.profilesReady; onTriggered: if (!profilesCheck.running) profilesCheck.running = true }
+    readonly property string profile: root.profilesReady && PowerProfiles.profile === PowerProfile.PowerSaver ? "saver" : root.profilesReady && PowerProfiles.profile === PowerProfile.Performance ? "performance" : "balanced"
+    readonly property bool hasPerformance: root.profilesReady && PowerProfiles.hasPerformanceProfile
     function setProfile(p) {
+        if (!root.profilesReady) return;
         PowerProfiles.profile = p === "saver" ? PowerProfile.PowerSaver : p === "performance" ? PowerProfile.Performance : PowerProfile.Balanced;
     }
 

@@ -384,7 +384,7 @@ Item {
                     height: Theme.s(640)
                     onCloseRequested: IslandState.close()
                 }
-                onShown: launcher.reset()
+                onShown: item.reset()
             }
 
             // ---- calculator ----
@@ -396,7 +396,7 @@ Item {
                     height: Theme.s(480)
                     onCloseRequested: IslandState.close()
                 }
-                onShown: calculator.reset()
+                onShown: item.reset()
             }
 
             // ---- clipboard history ----
@@ -408,7 +408,7 @@ Item {
                     height: Theme.s(470)
                     onCloseRequested: IslandState.close()
                 }
-                onShown: clipboard.reset()
+                onShown: item.reset()
             }
 
             // ---- capture ----
@@ -420,7 +420,7 @@ Item {
                     height: Theme.s(214)
                     onCloseRequested: IslandState.close()
                 }
-                onShown: capture.reset()
+                onShown: item.reset()
             }
 
             // ---- resource center ----
@@ -434,7 +434,7 @@ Item {
                     transformOrigin: Item.TopLeft
                     onCloseRequested: IslandState.close()
                 }
-                onShown: resources.reset()
+                onShown: item.reset()
             }
 
             // ---- free up space ----
@@ -448,7 +448,7 @@ Item {
                     transformOrigin: Item.TopLeft
                     onCloseRequested: IslandState.close()
                 }
-                onShown: cleanup.reset()
+                onShown: item.reset()
             }
 
             // ---- theme picker (modes) ----
@@ -460,7 +460,7 @@ Item {
                     height: Theme.s(200)
                     onCloseRequested: IslandState.close()
                 }
-                onShown: themes.reset()
+                onShown: item.reset()
             }
 
             // ---- wallpaper picker ----
@@ -472,7 +472,7 @@ Item {
                     height: Theme.s(420)
                     onCloseRequested: IslandState.close()
                 }
-                onShown: wallpapers.reset()
+                onShown: item.reset()
             }
 
             // ---- asking before a lock-in starts by hand ----
@@ -483,7 +483,7 @@ Item {
                     width: Theme.s(500)
                     height: Theme.s(120)
                 }
-                onShown: confirmStart.reset()
+                onShown: item.reset()
             }
 
             // ---- power menu ----
@@ -495,7 +495,7 @@ Item {
                     height: Theme.s(144)
                     onCloseRequested: IslandState.close()
                 }
-                onShown: power.reset()
+                onShown: item.reset()
             }
 
             // ---- brightness pop-up ----
@@ -565,13 +565,17 @@ Item {
         id: fi
         property bool active: false
         signal shown()
-        default property alias content: holder.data
+        // the tool itself: built in the background once the bar is up (Boot.settled),
+        // or right away if it's opened before then, and kept afterwards
+        default property Component content
+        readonly property alias item: ld.item
+        property bool wanted: false
         // stays drawn while it fades out, so switching tools crossfades
         visible: active || holder.opacity > 0
         width: parent ? parent.width : 0
         height: parent ? parent.height : 0
         onActiveChanged: {
-            if (active) { outAnim.stop(); anim.restart(); shown(); }
+            if (active) { wanted = true; outAnim.stop(); anim.restart(); shown(); }
             else { anim.stop(); outAnim.restart(); }
         }
 
@@ -581,6 +585,15 @@ Item {
             height: parent.height
             opacity: 0
             enabled: fi.active
+            Loader {
+                id: ld
+                // opened before it was built: finish it now (a background build in
+                // progress completes at once when asynchronous turns off)
+                asynchronous: !fi.wanted && !Boot.finishNow
+                active: fi.wanted || Boot.settled
+                sourceComponent: fi.content
+                onLoaded: if (!fi.wanted) Boot.ready("island")
+            }
         }
         // in: wait for the old content to go (150ms) and the shape to start
         // settling (120ms), then fade in over 300ms rising 6px

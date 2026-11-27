@@ -185,9 +185,25 @@ Singleton {
     readonly property var easeInOutCss: [0.42, 0, 0.58, 1, 1, 1]
     readonly property var springCss: spring
 
+    // theme.json and the colours are read at once (blocking, they're tiny), so the bar
+    // is built once with the right monitor, look and size instead of being built with
+    // the defaults and then rebuilt when the files arrive
+    Component.onCompleted: {
+        try { root.cfg = JSON.parse(cfgFile.text()); } catch (e) {}
+        root.roles = parseRoles(rolesFile.text());
+    }
+    function parseRoles(t) {
+        const out = {};
+        const re = /--([\w-]+):\s*(#[0-9a-fA-F]{6})/g;
+        let m;
+        while ((m = re.exec(t || "")) !== null) out[m[1]] = m[2];
+        return out;
+    }
+
     FileView {
         id: cfgFile
         path: Quickshell.shellDir + "/../theme.json"
+        blockLoading: true
         watchChanges: true
         onFileChanged: reload()
         onLoaded: {
@@ -206,16 +222,12 @@ Singleton {
     // matugen roles (primary, secondary, tertiary, ...) from the wallpaper, in Tide's own
     // file (~/.config/Tide/colors, written by scripts/wallpaper-apply.sh)
     FileView {
+        id: rolesFile
         path: Quickshell.env("HOME") + "/.config/Tide/colors/colors.css"
+        blockLoading: true
         watchChanges: true
         printErrors: false
         onFileChanged: reload()
-        onLoaded: {
-            const out = {};
-            const re = /--([\w-]+):\s*(#[0-9a-fA-F]{6})/g;
-            let m;
-            while ((m = re.exec(text())) !== null) out[m[1]] = m[2];
-            root.roles = out;
-        }
+        onLoaded: root.roles = root.parseRoles(text())
     }
 }

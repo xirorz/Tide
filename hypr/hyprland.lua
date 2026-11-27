@@ -181,11 +181,17 @@ hl.animation({ leaf = "workspaces", enabled = true, speed = 2.5, bezier = "myBez
 
 -- Login-only applications; reloads do not restart existing services.
 hl.on("hyprland.start", function()
+    -- first, before anything else: hand this session's display to systemd and D-Bus.
+    -- Services started on demand (the desktop portal above all) need it; without it the
+    -- portal hangs, and every app that asks it something (Quickshell does, at start)
+    -- waits out D-Bus's 25-second timeout. Then the shell, so the bar is the first thing up.
+    hl.exec_cmd("dbus-update-activation-environment --systemd WAYLAND_DISPLAY HYPRLAND_INSTANCE_SIGNATURE XDG_CURRENT_DESKTOP XDG_SESSION_TYPE XDG_SESSION_DESKTOP DISPLAY; "
+        .. "systemctl --user try-restart xdg-desktop-portal-hyprland.service xdg-desktop-portal.service; "
+        .. "pgrep -f '^(/usr/bin/)?qs -p " .. TIDE .. "/modes/dev/shell$' >/dev/null || uwsm-app -- qs -p " .. TIDE .. "/modes/dev/shell")
     -- idle and lock: hypridle's own user unit (restarts on failure; Tide's Idle service
     -- starts it again if it's ever missing, e.g. after a Hyprland crash)
     hl.exec_cmd("systemctl --user start hypridle.service")
     hl.exec_cmd("systemctl --user start hyprpolkitagent.service")
-    hl.exec_cmd("pgrep -f '^(/usr/bin/)?qs -p " .. TIDE .. "/modes/dev/shell$' >/dev/null || uwsm-app -- qs -p " .. TIDE .. "/modes/dev/shell")
     -- wallpaper daemon (awww), kept for every mode. It needs this session's display: hand it
     -- to systemd first (after a log out the old one is gone), and start clean (a failed
     -- try from before would stop systemd from starting it)

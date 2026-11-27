@@ -54,9 +54,26 @@ PanelWindow {
         screen: win.screen
     }
 
-    Settings {
-        anchors.centerIn: parent
-        visible: !Games.picking && !IslandState.steppedAside
+    // Settings: built in the background once the bar is up (Boot), or at once if it's
+    // opened first
+    Loader {
+        anchors.fill: parent
+        asynchronous: !IslandState.settingsOpen && !Boot.finishNow
+        active: IslandState.settingsOpen || Boot.settled || status === Loader.Ready
+        onLoaded: if (!IslandState.settingsOpen) Boot.ready("settings")
+        // Settings sizes itself from the screen, so it sits in a full-screen holder
+        sourceComponent: Item {
+            Settings {
+                anchors.centerIn: parent
+                visible: !Games.picking && !IslandState.steppedAside
+            }
+        }
+    }
+
+    // the bar's first frame: tells Boot to start building the rest
+    FrameAnimation {
+        running: !Boot.barShown
+        onTriggered: Boot.shown()
     }
 
     Island {

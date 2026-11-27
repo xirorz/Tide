@@ -16,7 +16,6 @@ Item {
     required property var screen
     property alias leftGroup: leftRow
     property alias rightGroup: rightRow
-    property alias controlCenter: controlCenter
     property bool ccOpen: false
     property bool upOpen: false
     property bool trayOpen: false         // a tray icon's menu (TrayMenu)
@@ -145,13 +144,21 @@ Item {
         }
     }
 
-    // right edge under the tray pill, where the updates count is
-    UpdatesPanel {
+    // right edge under the tray pill, where the updates count is. Built in the background
+    // once the bar is up (Boot), or at once if it's opened first; it opens only once
+    // it's built, so its drop-in animation still plays
+    Loader {
+        id: upLoader
         x: rightRow.x + trayPill.x + trayPill.width - width
         y: Theme.s(58)
-        open: bar.upOpen
-        maxHeight: Math.min(Theme.s(828), bar.height - Theme.s(58) - Theme.s(12))
-        onCloseRequested: bar.upOpen = false
+        asynchronous: !bar.upOpen && !Boot.finishNow
+        active: bar.upOpen || Boot.settled || status === Loader.Ready
+        onLoaded: if (!bar.upOpen) Boot.ready("updates")
+        sourceComponent: UpdatesPanel {
+            open: bar.upOpen && upLoader.status === Loader.Ready
+            maxHeight: Math.min(Theme.s(828), bar.height - Theme.s(58) - Theme.s(12))
+            onCloseRequested: bar.upOpen = false
+        }
     }
 
     TrayMenu {
@@ -159,13 +166,18 @@ Item {
         onCloseRequested: bar.trayOpen = false
     }
 
-    ControlCenter {
-        id: controlCenter
+    Loader {
+        id: ccLoader
         anchors.right: parent.right
         anchors.rightMargin: Theme.s(12)
         y: Theme.s(58)
-        open: bar.ccOpen
-        maxHeight: bar.height - Theme.s(58) - Theme.s(12)
-        onCloseRequested: bar.ccOpen = false
+        asynchronous: !bar.ccOpen && !Boot.finishNow
+        active: bar.ccOpen || Boot.settled || status === Loader.Ready
+        onLoaded: if (!bar.ccOpen) Boot.ready("control-center")
+        sourceComponent: ControlCenter {
+            open: bar.ccOpen && ccLoader.status === Loader.Ready
+            maxHeight: bar.height - Theme.s(58) - Theme.s(12)
+            onCloseRequested: bar.ccOpen = false
+        }
     }
 }

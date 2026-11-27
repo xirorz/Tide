@@ -1,0 +1,82 @@
+#!/usr/bin/env python3
+"""Where the time goes after you log in (run it any time after a login).
+
+Times are counted from the moment you logged in at the login screen, when that shows
+in the system log, otherwise from when Hyprland started. The shell's own marks come
+from ~/.local/state/tide/boot.log (written by the shell's Boot service).
+"""
+import os, re, subprocess, time
+
+def proc_start(pid):
+    try:
+        with open(f"/proc/{pid}/stat") as f:
+            fields = f.read().rsplit(")", 1)[1].split()
+        ticks = int(fields[19])
+        with open("/proc/stat") as f:
+            btime = int(next(l for l in f if l.startswith("btime")).split()[1])
+        return btime + ticks / os.sysconf("SC_CLK_TCK")
+    except Exception:
+        return None
+
+def first_start(pattern):
+    try:
+        out = subprocess.run(["pgrep", "-f", pattern], capture_output=True, text=True).stdout.split()
+    except Exception:
+        return None
+    times = [t for t in (proc_start(p) for p in out) if t]
+    return min(times) if times else None
+
+def login_time():
+    try:
+        out = subprocess.run(["journalctl", "-b", "-o", "short-unix", "--no-pager", "-q",
+                              "-g", r"session opened for user"], capture_output=True, text=True).stdout
+    except Exception:
+        return None
+    t = None
+    for line in out.splitlines():
+        if re.search(r"pam_unix\(sddm(-autologin)?:session\)", line):
+            try: t = float(line.split()[0])
+            except ValueError: pass
+    return t
+
+hypr = first_start(r"(^|/)Hyprland( |$)")
+login = login_time()
+if login and hypr and (login > hypr or hypr - login > 120):
+    login = None        # that log line belongs to an older login
+zero = login or hypr
+if not zero:
+    print("Hyprland isn't running."); raise SystemExit(1)
+
+rows = []
+if login: rows.append(("you logged in (login screen)", login))
+rows.append(("Hyprland started", hypr))
+for name, pat in [("Tide shell process (qs)", r"qs -p .*/Tide/modes/"),
+                  ("wallpaper daemon (awww)", r"awww-daemon|swww-daemon"),
+                  ("video wallpaper (mpvpaper)", r"mpvpaper"),
+                  ("idle (hypridle)", r"hypridle"),
+                  ("clipboard watcher", r"wl-paste --type text --watch")]:
+    t = first_start(pat)
+    if t: rows.append((name, t))
+
+# the shell's own marks, from its last start
+log = os.path.expanduser("~/.local/state/tide/boot.log")
+try:
+    lines = open(log).read().splitlines()
+    start = max(i for i, l in enumerate(lines) if l.startswith("--- shell-start"))
+    for l in lines[start:]:
+        what, _, ts = l.rpartition(" ")
+        rows.append(("shell: " + what.lstrip("- "), float(ts)))
+except (OSError, ValueError):
+    rows.append(("shell: no boot.log yet (the new shell hasn't started)", zero))
+
+boot = None
+try:
+    boot = subprocess.run(["systemd-analyze"], capture_output=True, text=True).stdout.strip().splitlines()[0]
+except Exception:
+    pass
+
+print("Tide startup, counted from " + ("your login" if login else "Hyprland's start") +
+      time.strftime(" (%H:%M:%S)", time.localtime(zero)))
+for name, t in sorted(rows, key=lambda r: r[1]):
+    print(f"  {t - zero:+8.2f}s  {name}")
+if boot: print("\nBefore the login screen: " + boot)
